@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Zeichencodierung festlegen, hier UTF-8 -->
+    <meta charset="utf-8">
+    
+    <!-- Titel der Seite -->
+    <title>Schätztabelle</title>
+
+    <!-- Meta-Informationen über den Autor und das Erstellungsdatum -->
+    <meta name="author" content="Thomas Boettcher">
+    <meta name="created" content="2025-04-01T07:33:03">
+    
+    <!-- Bootstrap CSS einbinden für Styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+    <!-- Eigene Styles -->
+    <style>
+      /* Text in Formulareingabefelder rechtsbündig ausrichten */
+      .form-control { text-align: right; }
+
+      /* Breite und Maximale Breite der Tabelle festlegen */
+      .table-custom { width: 100%; max-width: 750px; margin: auto; }
+
+      /* Cursor für Tooltip anzeigen */
+      .tooltip-label { cursor: help; }
+
+      /* Stil für ungültige Eingaben */
+      .is-invalid { border-color: red; }
+    </style>
+
+  </head>
+  <body>
+
+    <!-- Hauptcontainer der Seite mit Abstand -->
+    <div class="container my-5">
+      <!-- Überschrift der Seite -->
+      <h1 class="text-center mb-4">Schätztabelle</h1>
+
+      <!-- Auswahl für Rundungsoptionen -->
+      <div class="col-md-4 mb-3 mx-auto">
+        <label for="roundingOption" class="form-label">Rundungsoption</label>
+        <!-- Dropdown-Menü zur Auswahl der Rundungsoption -->
+        <select id="roundingOption" class="form-select">
+          <option value="standard" selected>Kaufmännisch runden</option>
+          <option value="floor">Immer abrunden</option>
+          <option value="none">Keine Rundung</option>
+        </select>
+      </div>
+
+      <!-- Tabelle für die Eingabefelder -->
+      <div class="table-responsive">
+        <form id="zstcalcform">
+          <table class="table table-striped table-bordered table-custom">
+            <thead class="table-primary text-center">
+              <!-- Tabellenüberschrift -->
+              <tr>
+                <th class="rounded-start">Kategorie</th>
+                <th></th>
+                <th>Zählerstand</th>
+                <th>Verbrauch*</th>
+                <th></th>
+                <th>Ablaufdatum</th>
+                <th></th>
+                <th class="rounded-end">Tage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Zählerstand für "Zukunft" -->
+              <tr>
+                <td>Zukunft</td>
+                <td></td>
+                <td id="zstFuture" class="text-end"></td>
+                <td id="verbrauchFuture" class="text-end">-</td>
+                <td></td>
+                <td class="text-end">
+                  <input type="text" id="datFutureInput" class="form-control" value="">
+                </td>
+                <td></td>
+                <td id="daysFuture" class="text-end">-</td>
+              </tr>
+              <!-- Zählerstand für "Aktuell" -->
+              <tr>
+                <td>Aktuell</td>
+                <td><span class="tooltip-label" data-bs-toggle="tooltip" title="Neuesten Zählerstand eintragen">&#10067;</span></td>
+                <td>
+                  <input type="text" id="zstNewInput" class="form-control" value="">
+                </td>
+                <td id="verbrauchNew" class="text-end">-</td>
+                <td></td>
+                <td>
+                  <input type="text" id="datNewInput" class="form-control" value="">
+                </td>
+                <td></td>
+                <td id="daysNew" class="text-end"></td>
+              </tr>
+              <!-- Zählerstand für "Dazwischen" -->
+              <tr>
+                <td>Dazwischen</td>
+                <td></td>
+                <td id="zstBetween" class="text-end bg-warning-subtle">-</td>
+                <td id="verbrauchBetween" class="text-end">-</td>
+                <td></td>
+                <td>
+                  <input type="text" id="datBetweenInput" class="form-control" value="">
+                </td>
+                <td></td>
+                <td id="daysBetween" class="text-end">-</td>
+              </tr>
+              <!-- Zählerstand für "Alt" -->
+              <tr>
+                <td>Alt</td>
+                <td>
+                  <span class="tooltip-label" data-bs-toggle="tooltip" title="Ältesten Zählerstand eintragen">&#10067;</span>
+                </td>
+                <td>
+                  <input id="zstOldInput" type="text" class="form-control" value="">
+                </td>
+                <td></td>
+                <td></td>
+                <td>
+                  <input type="text" id="datOldInput" class="form-control" value="">
+                </td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </form>
+      </div>
+      <!-- Tabelle End -->
+    </div>
+
+    <!-- Footer mit Bootstrap JavaScript -->
+    <footer>
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" 
+              integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <script>
+   /*
+    * Dieses Skript ist für die Berechnung und Anzeige interpolierter Zählerstände sowie 
+    * des Verbrauchs basierend auf Benutzereingaben (Datum und Zählerstände).
+    * Unterstützt deutsche Formate (TT.MM.JJJJ für Datum und 1.234,567 für Zählerstände).
+    * Rundungsoptionen: Kaufmännisch, Abrunden, Keine Rundung.
+    */
+
+    // Überprüfung des neuen Zählerstandes bei Änderung
+    zstNewInput.addEventListener("change", () => {
+      const value = zstNewInput.value;
+      const regex = /^\d{1,3}(\.\d{3})*,\d{1,3}$/; // Format: Tausendertrennzeichen + Dezimalkomma
+      if (!regex.test(value)) {
+        alert("Bitte geben Sie einen gültigen Zählerstand im Format 1.234,5 ein.");
+        zstNewInput.value = ""; // Eingabe zurücksetzen
+      }
+    });
+
+    // Wenn die Seite vollständig geladen ist, wird dieses Skript ausgeführt
+    document.addEventListener("DOMContentLoaded", function () {
+      // Verschiedene Eingabefelder und IDs definieren
+      const roundingOption = document.getElementById("roundingOption"); // Dropdown für Rundungsoptionen
+      const zstFuture = document.getElementById("zstFuture"); // Ausgabe des interpolierten Zählerstands für Zukunft
+      const zstNewInput = document.getElementById("zstNewInput"); // Benutzerinput: aktueller Zählerstand
+      const zstOldInput = document.getElementById("zstOldInput"); // Benutzerinput: alter Zählerstand
+      const datFutureInput = document.getElementById("datFutureInput");
+      const datNewInput = document.getElementById("datNewInput");
+      const datOldInput = document.getElementById("datOldInput");
+      const datBetweenInput = document.getElementById("datBetweenInput");
+      const daysFuture = document.getElementById("daysFuture");
+      const daysNew = document.getElementById("daysNew");
+      const daysBetween = document.getElementById("daysBetween");
+      const zstBetween = document.getElementById("zstBetween");
+      const verbrauchFuture = document.getElementById("verbrauchFuture"); // Ausgabe des berechneten Verbrauchs für die Zukunft
+      const verbrauchNew = document.getElementById("verbrauchNew");
+      const verbrauchBetween = document.getElementById("verbrauchBetween");
+
+      // Validierung für deutsches Datumsformat (TT.MM.JJJJ)
+      const isValidGermanDate = (dateString) => {
+        const regex = /^\d{2}\.\d{2}\.\d{4}$/; // Prüft auf TT.MM.JJJJ
+        if (!regex.test(dateString)) return false;
+
+        const [day, month, year] = dateString.split('.').map(Number);
+        const date = new Date(year, month - 1, day); // Monat ist nullbasiert
+        return (
+          date.getFullYear() === year &&
+          date.getMonth() === month - 1 &&
+          date.getDate() === day
+        );
+      };
+
+      // Konvertierung von deutschem Datum zu Date-Objekt
+      const parseGermanDate = (dateString) => {
+        if (!isValidGermanDate(dateString)) return null;
+        const [day, month, year] = dateString.split('.').map(Number);
+        return new Date(year, month - 1, day);
+      };
+
+      const validateInput = (inputElement) => {
+        const value = inputElement.value;
+
+        if (!isValidGermanDate(value)) {
+          inputElement.classList.add("is-invalid");
+          inputElement.setCustomValidity("Bitte ein gültiges Datum im Format TT.MM.JJJJ eingeben.");
+        } else {
+          inputElement.classList.remove("is-invalid");
+          inputElement.setCustomValidity("");
+        }
+      };
+
+      // Event Listener für Eingaben im Datumsfeld
+      [datOldInput, datNewInput, datFutureInput, datBetweenInput].forEach((element) => {
+        element.addEventListener("input", () => validateInput(element));
+      });
+      
+      // Verarbeitet die Eingabewerte und gibt sie als Zahlen zurück
+      const parseValue = (value) => {
+        if (!value) return "-"; //null; // Null zurückgeben, falls kein Wert eingegeben wurde
+
+        // Tausenderpunkte entfernen, aber Dezimal-Komma zu Punkt umwandeln
+        const cleanedValue = value.replace(/\./g, "").replace(/,/, ".");
+
+        // In eine Zahl umwandeln
+        return parseFloat(cleanedValue); // Die Eingabe bleibt genau
+      };
+
+    /**
+      * Berechnet die Anzahl der Tage zwischen zwei Datumswerten.
+      * Erwartet Eingabe im Format TT.MM.JJJJ und konvertiert diese in Date-Objekte.
+      * Gibt die Differenz in Tagen zurück.
+      * @param {string} startDate - Startdatum (TT.MM.JJJJ).
+      * @param {string} endDate - Enddatum (TT.MM.JJJJ).
+      * @returns {number|string} - Anzahl der Tage oder "-" bei ungültiger Eingabe.
+      */
+      const calculateDays = (startDate, endDate) => {
+        const start = parseGermanDate(startDate);
+        const end = parseGermanDate(endDate);
+        if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime())) return "-";
+        return Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      };
+
+     /*
+      * Rundungsoptionen:
+      * - "standard": Kaufmännisches Runden (Standardwahl).
+      * - "floor": Immer abrunden, kein Kaufmännisches Runden.
+      * - "none": Keine Rundung, Werte bleiben genau, aber auf 3 Nachkommastellen begrenzt.
+      */
+      const roundValue = (value) => {
+        if (isNaN(value) || value === null || value === undefined) return "-";
+        const roundingMethod = roundingOption ? roundingOption.value : "standard";
+
+        switch (roundingMethod) {
+          case "floor":
+            return Math.floor(value); // Abrunden
+          case "none":
+            return parseFloat(value.toFixed(3)); // Keine Rundung, aber auf 3 Nachkommastellen begrenzen
+          default:
+            return Math.round(value); // Kaufmännisch runden (Standard)
+        }
+      };
+
+      // Berechnung aktualisieren
+      const updateCalculation = () => {
+        const oldDate = datOldInput.value;
+        const newDate = datNewInput.value;
+        const futureDate = datFutureInput.value;
+        const betweenDate = datBetweenInput.value;
+
+        const zstOldVal = parseValue(zstOldInput.value);
+        const zstNewVal = parseValue(zstNewInput.value);
+
+        // Absicherung gegen ungültige Werte
+        // Überprüfung der Zählerstand-Eingabe
+        if (isNaN(zstOldVal) || isNaN(zstNewVal)) {
+          // Falls einer der Eingaben ungültig ist (z.B. leer oder falsch formatiert)
+          zstFuture.textContent = "-";
+          zstBetween.textContent = "-";
+          verbrauchFuture.textContent = "-";
+          verbrauchNew.textContent = "-";
+          verbrauchBetween.textContent = "-";
+          return; // Keine weiteren Berechnungen durchführen
+        }
+
+        // Tage berechnen
+        const daysTotalOldToNew = calculateDays(oldDate, newDate);
+        const daysToFuture = calculateDays(newDate, futureDate);
+        const daysToBetween = calculateDays(oldDate, betweenDate);
+
+        daysNew.textContent = isNaN(daysTotalOldToNew) ? "-" : daysTotalOldToNew;
+        daysFuture.textContent = isNaN(daysToFuture) ? "-" : daysToFuture;
+        daysBetween.textContent = isNaN(daysToBetween) ? "-" : daysToBetween;
+
+        // Zählerstände interpolieren
+        const zstFutureVal = zstNewVal + ((zstNewVal - zstOldVal) * (daysToFuture / daysTotalOldToNew));
+        const zstBetweenVal = zstOldVal + ((zstNewVal - zstOldVal) * (daysToBetween / daysTotalOldToNew));
+
+        // Verbrauch berechnen
+        const verbrauchToFuture = zstFutureVal - zstNewVal;
+        const verbrauchToBetween = zstBetweenVal - zstOldVal;
+        const verbrauchToNew = zstNewVal - zstOldVal;
+
+        // Ergebnisse anzeigen
+        zstFuture.textContent = roundValue(zstFutureVal);
+        zstBetween.textContent = roundValue(zstBetweenVal);
+        verbrauchFuture.textContent = roundValue(verbrauchToFuture);
+        verbrauchNew.textContent = roundValue(verbrauchToNew);
+        verbrauchBetween.textContent = roundValue(verbrauchToBetween);
+
+      };
+
+      // Event-Listener für Eingaben an Zählerständen und Datumsfeldern
+      [datOldInput, datNewInput, datFutureInput, datBetweenInput, zstOldInput, zstNewInput].forEach((element) => {
+        element.addEventListener("input", updateCalculation);
+      });
+
+      // Initiale Berechnung durchführen
+      updateCalculation();
+    });
+    </script>
+
+    </footer>
+
+  </body>
+</html>
