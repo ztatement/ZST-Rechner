@@ -297,6 +297,21 @@
         const verbrauchToBetween = zstBetweenVal - zstOldVal;
         const verbrauchToNew = zstNewVal - zstOldVal;
 
+        // Negativen Verbrauch hervorheben
+        const setNegativeClass = (element, value) => {
+          if (value < 0) {
+            element.classList.add("negative");
+          } else {
+            element.classList.remove("negative");
+          }
+        };
+        // Beispiele für die Ergebnisse
+        setNegativeClass(zstFuture, zstFutureVal);
+        setNegativeClass(zstBetween, zstBetweenVal);
+        setNegativeClass(verbrauchFuture, verbrauchToFuture);
+        setNegativeClass(verbrauchNew, verbrauchToNew);
+        setNegativeClass(verbrauchBetween, verbrauchToBetween);
+
         // Ergebnisse anzeigen
         zstFuture.textContent = roundValue(zstFutureVal);
         zstBetween.textContent = roundValue(zstBetweenVal);
