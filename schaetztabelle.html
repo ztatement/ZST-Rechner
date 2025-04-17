@@ -39,20 +39,36 @@
       .hero-container { display: flex; justify-content: center; align-items: center; height: 80vh; }
       .left-column { flex: 2; padding-right: 20px; }
       .right-column { /*flex: 1; padding-left: 20px;*/ display: flex; flex-direction: column; justify-content: flex-start; margin-top: 3rem; /* Höhe der Überschrift ausgleichen */ }
-      
+
+      .table>tbody {  vertical-align: middle; }
+
       output {
-        width: 100%;                /* Volle Breite wie Input */
-        padding: 8px 12px;          /* Innenabstand */
-        border: 1px solid #ccc;     /* Rahmen */
-        border-radius: 4px;         /* Abgerundete Ecken */
-        background-color: #fff;     /* Hintergrundfarbe */
-        font-family: inherit;       /* Schriftart erben */
-        font-size: 1rem;            /* Schriftgröße */
-        color: #333;                /* Schriftfarbe */
-        box-shadow: none;           /* Keine Schatten */
-        display: inline-block;      /* Verhalten wie Input */
-        outline: none;              /* Entfernt Standard-Outline */
+        width: 100%;                  /* Volle Breite wie Input */
+        padding: 8px 12px;            /* Innenabstand */
+        border: 1px solid #ccc;       /* Rahmen */
+        border-radius: 4px;           /* Abgerundete Ecken */
+        background-color: #fff;       /* Hintergrundfarbe */
+        font-family: inherit;         /* Schriftart erben */
+        font-size: 1rem;              /* Schriftgröße */
+        color: #333;                  /* Schriftfarbe */
+        box-shadow: none;             /* Keine Schatten */
+        display: inline-block;        /* Verhalten wie Input */
+        outline: none;                /* Entfernt Standard-Outline */
       }
+
+      .table-success td .d-flex {
+        display: flex;                  /* Flexbox-Container */
+        justify-content: space-between; /* Elemente gleichmäßig verteilen */
+        align-items: center;            /* Vertikal zentrieren */
+      }
+
+      .table-success td a,
+      .table-success td span {
+        margin: 0 8px;                 /* Abstände zwischen den Elementen */
+      }
+      
+      .info-text {color:#0dcaf0;}
+
     </style>
 
   </head>
@@ -64,11 +80,11 @@
         <!-- Tabelle im linken Bereich -->
         <div class="col-md-9 left-column">
           <!-- Überschrift der Seite -->
-          <h1 class="text-center mb-4">`Schätztabelle`</h1>
+          <h1 class="text-center mb-4">&#147;Schätztabelle&#148;</h1>
           <!-- Tabelle für die Eingabefelder -->
           <div class="table-responsive">
             <form id="zstcalcform">
-              <table class="table table-striped table-bordered table-custom">
+              <table class="table table-striped table-bordered table-custom border border-1">
                 <!-- Tabellenüberschrift -->
                 <thead class="table-success text-center">
                   <tr>
@@ -80,11 +96,12 @@
                     <th class="text-end">Tage</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   <!-- Zählerstand für "Zukunft" -->
                   <tr>
                     <td>Zukunft</td>
-                    <td></td>
+                    <td><!--'Btn' für Schätzung--></td>
                     <td id="zstFutureOutput" class="text-end">
                       <output id="zstFuture" type="text" class="form-control bg-transparent" name="zstBetween" aria-live="polite" readonly></output>
                     </td>
@@ -95,7 +112,7 @@
                   <!-- Zählerstand für "Aktuell" -->
                   <tr>
                     <td>Aktuell</td>
-                    <td><span class="tooltip-label" data-bs-toggle="tooltip" title="Neuesten Zählerstand eintragen">&#10067;</span></td>
+                    <td><span class="tooltip-label" data-bs-toggle="tooltip" title="Neuesten abgelesenen Zählerstand eintragen">&#10067;</span></td>
                     <!-- Eingabe für aktuellen Zählerstand -->
                     <td>
                       <input type="text" id="zstNewInput" class="form-control" value="">
@@ -120,7 +137,7 @@
                   <!-- Ältester abgelesener Zählerstand -->
                   <tr>
                     <td>Alt</td>
-                    <td><span class="tooltip-label" data-bs-toggle="tooltip" title="Ältesten Zählerstand eintragen">&#10067;</span></td>
+                    <td><span class="tooltip-label" data-bs-toggle="tooltip" title="Ältesten abgelesenen Zählerstand eintragen">&#10067;</span></td>
                     <!-- Eingabe für ältesten Zählerstand -->
                     <td>
                       <input id="zstOldInput" type="text" class="form-control" placeholder="0" value="0">
@@ -132,25 +149,35 @@
                     <td></td>
                   </tr>
                 </tbody>
+
                 <tfoot class="table-success">
                   <tr>
-                    <td colspan="6" class="text-start text-muted fs-6">
-                      <a class="text-decoration-none text-muted fs-6" href="https://github.com/ztatement/ZST-Rechner">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-github pb-1" viewBox="0 0 16 16">
-                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
-                        </svg> Ztatement 
-                      </a>
-                      <span class="float-end">
-                        <a class="fs-6 text-decoration-none text-muted" href="#" class="d-inline-block" data-bs-toggle="modal" data-bs-target="#infoModal" aria-label="Mehr Informationen zum Zählerstand-Rechner">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle" viewBox="0 0 16 16">
+                    <td colspan="6" class="text-start text-muted fs-6 py-1">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <!-- Link zu GitHub -->
+                        <a class="text-decoration-none text-muted fs-6" href="https://github.com/ztatement/ZST-Rechner">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-github pb-1" viewBox="0 0 16 16">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
+                          </svg> Ztatement
+                        </a>
+
+                        <!-- Button zum Leeren der Inhalte -->
+                        <span>
+                          <button id="resetButton" class="btn btn-light text-center py-1">Inhalte leeren</button>
+                        </span>
+
+                        <!-- Link mit Info-Icon -->
+                        <a class="fs-6 text-decoration-none text-muted" href="#" data-bs-toggle="modal" data-bs-target="#infoModal" aria-label="Mehr Informationen zum Zählerstand-Rechner">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle text-danger" viewBox="0 0 16 16">
                             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
                             <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
                           </svg>
                         </a>
-                      </span>
+                      </div>
                     </td>
                   </tr>
                 </tfoot>
+
               </table>
             </form>
           </div><!-- Tabelle Ende -->
@@ -178,10 +205,12 @@
                 <option value="6" selected>6 Vorkommastellen</option>
               </select>
             </div>
-            <!-- Button zum Leeren der Inhalte -->
-            <div class="text-center mt-4">
-              <button id="resetButton" class="btn btn-light">Inhalte leeren</button>
+            <!-- Wintermodus an / aus -->
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="winterModeCheckbox">
+              <label class="form-check-label" for="winterModeCheckbox">Wintermodus</label>
             </div>
+
           </div>
         </div>
       </div>
@@ -217,7 +246,7 @@
   </li>
   <li><strong>Optionale Anpassungen:</strong>
     <ul>
-      <li><strong>Wintermodus:</strong> Automatische Berücksichtigung eines Mehrverbrauchs von 2 % – praktisch für Heizkosten im Winter. (Monat November bis Februar)</li>
+      <li><strong>Wintermodus:</strong> Automatische Berücksichtigung eines Mehrverbrauchs von 2 %, angepasst für die Wintermonate November bis Februar. Die Berechnung erfolgt auf Basis der tatsächlichen Verbrauchstage in diesem Zeitraum und berücksichtigt damit z.B.Heizkosten präzise. Die Berechnung wird nicht pauschal auf den gesamten Zeitraum angewendet.</li>
       <li><strong>Rundungsoptionen:</strong>
         <ul>
           <li><em>Kaufmännisch</em> (Standard).</li>
@@ -266,7 +295,8 @@
       
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" 
               integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-      <script src="zst-rechner_min.js"></script>
+      <!--script src="zst-rechner_min.js"></script-->
+      <script src="zst-rechner.js"></script>
 
       <script>
       document.getElementById('resetButton').addEventListener('click', function () {
