@@ -1,31 +1,51 @@
- /*
-  * Zählerstand-Rechner - (mit Initialisierungs-Check)
-  *
-  * Dieses Skript berechnet und zeigt interpolierte Zählerstände sowie den Verbrauch 
-  * basierend auf den Benutzereingaben (Datum und Zählerstände) an.
-  * Unterstützt das deutsche Format TT.MM.JJJJ für Datum und 1.234,567 für Zählerstände.
-  *
-  * Funktionen:
-  * - Validierung der Eingaben (Zählerstand und Datum).
-  * - Fehleranzeige via Bootstrap (Fehlermeldungen, CSS-Klassen).
-  * - Interpolation des Zählerstandes zwischen zwei Zeitpunkten.
-  * - Verbrauchsberechnung unter Berücksichtigung eines eventuellen Überlaufs.
-  * - Anwendung einer optionalen Winteranpassung (2% Mehrverbrauch).
-  * - Dynamische Rundungsoptionen (kaufmännisch, abrunden oder keine Rundung).
-  * - Initialisierung von Bootstrap Tooltips.
-  *
-  * Hinweis: Vor der Validierung wird geprüft, ob alle Pflichtfelder (z. B. aktueller Zählerstand,
-  * Start- und Enddatum) einen Wert besitzen. Fehlen diese Eingaben, bleibt die Anzeige leer.
-  */
+/*
+ * Zählerstand-Rechner (mit Initialisierungs-Check)
+ * 
+ * Autor: Thomas Boettcher @ztatement <github [at] ztatement [dot] com>
+ * Lizenz: MIT (https://opensource.org/licenses/MIT)
+ * Repository: https://github.com/ztatement/ZST-Rechner
+ * Erstellt: Tue Apr 01 2025 07:33:03 GMT+0200
+ * Letzte Änderung: Thu Apr 17 2025 06:20:57 GMT+0200
+ * 
+ * Beschreibung:
+ * Dieses Skript berechnet und zeigt interpolierte Zählerstände sowie den Verbrauch 
+ * basierend auf den Benutzereingaben (Datum und Zählerstände) an.
+ * Unterstützt das deutsche Format TT.MM.JJJJ für Datum und 1.234,567 für Zählerstände.
+ * 
+ * Funktionen:
+ * - Validierung der Eingaben (Zählerstand und Datum)
+ * - Fehleranzeige via Bootstrap (Fehlermeldungen, CSS-Klassen)
+ * - Interpolation des Zählerstandes zwischen zwei Zeitpunkten
+ * - Verbrauchsberechnung unter Berücksichtigung eines eventuellen Überlaufs
+ * - Anwendung einer optionalen Winteranpassung (2% Mehrverbrauch)
+ * - Dynamische Rundungsoptionen (kaufmännisch, abrunden oder keine Rundung)
+ * - Initialisierung von Bootstrap Tooltips
+ * 
+ * Nutzung:
+ * - Stelle sicher, dass alle notwendigen Eingaben gemacht wurden, bevor die Berechnung startet.
+ * - Das Skript aktualisiert die Werte automatisch, wenn Änderungen an den Eingaben vorgenommen werden.
+ * - Fehlerhafte Eingaben werden erkannt und durch visuelle Rückmeldungen angezeigt.
+ * 
+ * Hinweis:
+ * Vor der Validierung wird geprüft, ob alle Pflichtfelder (z. B. aktueller Zählerstand,
+ * Start- und Enddatum) einen Wert besitzen. Fehlen diese Eingaben, bleibt die Anzeige leer.
+ */
 
 document.addEventListener("DOMContentLoaded", function () {
-  // - Bootstrap Tooltip Initialisierung -
+
+  // Konfiguration
+  const CONFIG = {
+    maxValue: 999999,
+    winterFactor: 1.02,
+  };
+
+  // *** Bootstrap Tooltip Initialisierung ********************************* */
   const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
   tooltipTriggerList.forEach((tooltipTriggerEl) => {
     new bootstrap.Tooltip(tooltipTriggerEl);
   });
 
-  // - DOM-Elemente und Eingabefelder -
+  // *** DOM-Elemente und Eingabefelder ************************************ */
   const zstOldInput = document.getElementById("zstOldInput"); // Ältester Zählerstand
   const zstNewInput = document.getElementById("zstNewInput"); // Aktueller Zählerstand
   const datOldInput = document.getElementById("datOldInput"); // Datum des ältesten Zählerstands
@@ -46,12 +66,22 @@ document.addEventListener("DOMContentLoaded", function () {
   const verbrauchNew = document.getElementById("verbrauchNew");
   const verbrauchBetween = document.getElementById("verbrauchBetween");
 
+  // Fehlerbehandlungen
+  const logError = (message) => {
+    console.error(`[Fehler]: ${message}`);
+  };
+  // Debugging-Meldungen
+  const logDebug = (message) => {
+    console.log(`[Debug]: ${message}`);
+  };
+
+
   // Standardwert für den ältesten Zählerstand setzen, falls leer.
   if (!zstOldInput.value.trim()) {
     zstOldInput.value = "0";
   }
 
-  // - Fehleranzeige-Funktionen -
+  // *** Fehleranzeige-Funktionen ****************************************** */
 
   const showError = (message, inputElement) => {
     const feedbackElement = document.getElementById(inputElement + "Feedback");
@@ -76,17 +106,23 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  // - Validierung und Parsing des Zählerstandes -
+  // *** Validierung und Parsing des Zählerstandes ************************* */
+  // Überprüft die Eingabeformate für Zählerstände, einschließlich Vorkommastellen und Nachkommastellen.
+  // Stellt sicher, dass das Format den deutschen Konventionen entspricht (z. B. 1.234,567).
 
-  /**
-   * Prüft, ob der eingegebene Zählerstand maximal die erwartete Anzahl an Vorkommastellen
-   * (ohne Punkte und führende Nullen) und maximal drei Nachkommastellen enthält.
-   * Der Wert "0" (Null) wird als gültig akzeptiert.
-   *
-   * @param {string} value - Der eingegebene Zählerstand.
-   * @param {string} vorkommastellen - Erwartete maximale Anzahl der Vorkommastellen.
-   * @returns {boolean} - True, wenn gültig, sonst false.
-   */
+/**
+  * Prüft die Gültigkeit eines Zählerstands basierend auf den erwarteten Vorkommastellen.
+  * Entfernt Punkte und führende Nullen, um die Zählstruktur korrekt zu analysieren.
+  * Akzeptiert maximal drei Nachkommastellen.
+  * 
+  * Beispiel:
+  * - Eingabe: "001.234,567"
+  * - Ergebnis: Gültig, wenn erwartete Vorkommastellen >= 4 sind.
+  *
+  * @param {string} value - Der eingegebene Zählerstand (z. B. "1.234,567").
+  * @param {string} vorkommastellen - Maximale Anzahl der Vorkommastellen laut Auswahl.
+  * @returns {boolean} - Gibt true zurück, wenn der Zählerstand gültig ist, andernfalls false.
+  */
   const validateVorkommastellen = (value, vorkommastellen) => {
     // Falls der eingetragene Wert numerisch 0 ist, akzeptieren wir ihn direkt.
     const numericValue = parseFloat(value.replace(/\./g, "").replace(",", "."));
@@ -110,7 +146,6 @@ document.addEventListener("DOMContentLoaded", function () {
     return cleanedValue.length <= parseInt(vorkommastellen, 10);
   };
 
-
   const validateZaehlerstand = (inputElement, vorkommastellen) => {
     const value = inputElement.value.trim();
     // Wenn kein Wert eingetragen wurde, wird erstmal keine Fehlermeldung gezeigt.
@@ -123,7 +158,8 @@ document.addEventListener("DOMContentLoaded", function () {
       showError("Bitte gib einen gültigen Zählerstand im Format 1.234,567 ein.", inputElement.id);
       console.warn("Ungültige Eingabe: " + value);
       return false;
-    } else {
+    }
+    else {
       hideError(inputElement.id);
       return true;
     }
@@ -135,7 +171,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return parseFloat(cleanedValue);
   };
 
-  // - Datum Validierung und Parsing -
+  // *** Datum Validierung und Parsing ************************************* */
 
   const isValidGermanDate = (dateString) => {
     const regex = /^\d{2}\.\d{2}\.\d{4}$/; // Prüft auf TT.MM.JJJJ
@@ -164,7 +200,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!isValidGermanDate(value)) {
       inputElement.classList.add("is-invalid");
       inputElement.setCustomValidity("Bitte ein gültiges Datum im Format TT.MM.JJJJ eingeben.");
-    } else {
+    }
+    else {
       inputElement.classList.remove("is-invalid");
       inputElement.setCustomValidity("");
     }
@@ -174,26 +211,103 @@ document.addEventListener("DOMContentLoaded", function () {
     element.addEventListener("input", () => validateInputDate(element));
   });
 
-  // - Zusätzliche Validierung für den aktuellen Zählerstand -
+  // *** Zusätzliche Validierung für den aktuellen Zählerstand ************* */
   zstNewInput.addEventListener("change", () => {
     let value = zstNewInput.value.trim();
     const regex = /^\d{1,3}(\.\d{3})*(,\d{1,3})?$/;
     if (!regex.test(value)) {
       alert("Bitte geben Sie einen gültigen Zählerstand im Format 1.234,567 ein.");
       zstNewInput.value = "";
-    } else if (!value.includes(",")) {
+    }
+    else if (!value.includes(",")) {
       zstNewInput.value += ",0";
     }
     console.log("Regex-Prüfung erfolgreich:", regex.test(value));
   });
 
-  // - Berechnungsfunktionen -
+  // *** Berechnungsfunktionen ********************************************* */
+  // Diese Funktionen führen Kernberechnungen durch, darunter:
+  // - Verbrauchsberechnung mit Überlaufbehandlung
+  // - Anpassung des Verbrauchs für Wintertage (2 % Zuschlag bei Aktivierung)
+  // - Berechnung der interpolierten Zählerstände (z. B. "Dazwischen" und "Zukunft")
 
+/**
+  * Berechnet den Verbrauch zwischen zwei Zählerständen unter Berücksichtigung eines Überlaufs.
+  * 
+  * Beispiel:
+  * - Alter Zählerstand: 999.999
+  * - Neuer Zählerstand: 1.234
+  * - Maximalwert: 999.999
+  * Ergebnis: (999.999 - 999.999) + 1.234 + 1 = 1.235
+  *
+  * @param {number} oldValue - Der vorherige Zählerstand.
+  * @param {number} newValue - Der aktuelle Zählerstand.
+  * @param {number} maxValue - Der maximale Zählerwert (z. B. 999.999).
+  * @returns {number} - Der berechnete Verbrauch unter Berücksichtigung des Überlaufs.
+  */
   const calculateConsumption = (oldValue, newValue, maxValue) => {
     if (oldValue > newValue) {
-      return (maxValue - oldValue) + newValue + 1;
+      console.log("Überlauf erkannt! Alter Wert: " + oldValue + ", Neuer Wert: " + newValue);
+      return (maxValue - oldValue) + newValue;
     }
     return newValue - oldValue;
+  };
+
+  // Checkbox für Wintermodus auslesen
+  const winterModeCheckbox = document.getElementById("winterModeCheckbox");
+
+/**
+  * Berechnet den angepassten Verbrauch, unter Berücksichtigung eines 2%-Zuschlags für Wintertage.
+  * 
+  * Der Wintermodus gilt für die Monate November, Dezember, Januar und Februar.
+  * Der Verbrauch wird anteilig für die Wintertage berechnet.
+  * 
+  * Beispiel:
+  * - Zeitraum: 01.11.2024 bis 28.02.2025
+  * - Verbrauch: 1000 Einheiten
+  * - Wintertage: 120 Tage (von 120 möglichen Tagen)
+  * Ergebnis: +2 % Zuschlag nur für die Wintertage.
+  *
+  * @param {string} startDate - Startdatum im deutschen Format (TT.MM.JJJJ).
+  * @param {string} endDate - Enddatum im deutschen Format (TT.MM.JJJJ).
+  * @param {number} consumption - Verbrauch im Zeitraum.
+  * @returns {object} - Enthält den angepassten Verbrauch und die Anzahl der Wintertage.
+  */
+  const calculateWinterAdjustedConsumption = (startDate, endDate, consumption) => {
+    const start = parseGermanDate(startDate);
+    const end = parseGermanDate(endDate);
+    if (!start || !end || consumption <= 0) return {
+      adjustedConsumption: consumption,
+      winterDays: 0
+    };
+
+    let winterDays = 0;
+    let totalDays = 0;
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      totalDays++;
+      if (isWinterMonth(d.toLocaleDateString("de-DE"))) {
+        winterDays++;
+      }
+    }
+
+    console.log(`Wintertage: ${winterDays}, Gesamttage: ${totalDays}`);
+
+    if (totalDays <= 0) {
+      logError("Fehler: Gesamtanzahl der Tage ist 0 oder negativ. Berechnung nicht möglich.");
+      return {
+        adjustedConsumption: consumption,
+        winterDays: 0
+      };
+    }
+
+    const dailyConsumption = Math.abs(consumption) / totalDays;
+    const winterConsumption = dailyConsumption * winterDays * 0.02;
+
+    return {
+      adjustedConsumption: consumption + winterConsumption,
+      winterDays
+    };
   };
 
   const calculateDays = (startDate, endDate) => {
@@ -216,15 +330,17 @@ document.addEventListener("DOMContentLoaded", function () {
     let roundedValue = value;
     if (roundingMethod === "floor") {
       roundedValue = Math.floor(value);
-    } else if (roundingMethod === "none") {
+    }
+    else if (roundingMethod === "none") {
       roundedValue = parseFloat(value.toFixed(3));
-    } else {
+    }
+    else {
       roundedValue = Math.round(value);
     }
     return formatNumber(roundedValue);
   };
 
-  // - Aktualisierung der Berechnungen -
+  // *** Aktualisierung der Berechnungen *********************************** */
 
   const updateCalculation = () => {
     // Sicherstellen, dass alle nötigen Eingaben vorhanden sind.
@@ -282,7 +398,8 @@ document.addEventListener("DOMContentLoaded", function () {
       daysOldToBetween = calculateDays(oldDate, betweenDate);
       daysBetweenToNew = calculateDays(betweenDate, newDate);
       daysTotalOldToNew = daysOldToBetween + daysBetweenToNew;
-    } else {
+    }
+    else {
       // Kein Zwischen-Datum: Gesamttage von altem bis neuem Datum
       daysTotalOldToNew = calculateDays(oldDate, newDate);
       daysOldToBetween = "-";
@@ -295,18 +412,55 @@ document.addEventListener("DOMContentLoaded", function () {
     // Berechne den Tagesverbrauch basierend auf dem Zeitraum oldDate bis newDate
     let dailyConsumption = (zstNewVal - zstOldVal) / daysTotalOldToNew;
 
-    // Winteranpassung (2% Mehrverbrauch) falls der Monat des neuen Datums in die Winterperiode fällt.
-    const winterFactor = 1.02;
 
-    // Wenn der Zeitraum in eine Winterperiode fällt (z. B. anhand newDate), wende den Winterfaktor an.
-    if (isWinterMonth(newDate)) {
-      dailyConsumption *= winterFactor;
-      console.log("Winterfaktor aktiv: Tagesverbrauch für Future wurde um 2% erhöht.");
+    if ((zstNewVal - zstOldVal) < 0 || calculateDays(oldDate, newDate) <= 0) {
+      logError("Fehlerhafte Werte: Verbrauch oder Tage sind negativ/null.");
+      dailyConsumption = 0; // Neutralisieren fehlerhafte Werte
+    }
+    else {
+      const {
+        adjustedConsumption,
+        winterDays
+      } = calculateWinterAdjustedConsumption(oldDate, newDate, (zstNewVal - zstOldVal));
+      dailyConsumption = adjustedConsumption / calculateDays(oldDate, newDate);
+      console.log(`Tagesverbrauch mit Winteranpassung: ${dailyConsumption}, Wintertage: ${winterDays}`);
+    }
+
+    const {
+      adjustedConsumption,
+      winterDays
+    } = calculateWinterAdjustedConsumption(oldDate, newDate, (zstNewVal - zstOldVal));
+    dailyConsumption = adjustedConsumption / calculateDays(oldDate, newDate);
+    console.log(`Tagesverbrauch mit Winteranpassung: ${dailyConsumption}, Wintertage: ${winterDays}`);
+
+    if (adjustedConsumption < 0 || calculateDays(oldDate, newDate) <= 0) {
+      logError("Fehlerhafte Werte: Verbrauch oder Tage sind negativ/null.");
+      dailyConsumption = 0; // Setze den Tagesverbrauch auf 0, wenn fehlerhafte Werte erkannt werden
+    }
+    else {
+      dailyConsumption = adjustedConsumption / calculateDays(oldDate, newDate);
+    }
+
+    if (dailyConsumption < 0 || isNaN(dailyConsumption)) {
+      logError("Fehler: Tagesverbrauch ist negativ oder ungültig.");
+      dailyConsumption = 0; // Falsche Werte neutralisieren
     }
 
     // Extrapoliere den zukünftigen Zählerstand ab zstNewVal
-    let zstFutureVal = futureDate !== "" ? zstNewVal + dailyConsumption * daysNewToFuture : "-";
-
+    ///let zstFutureVal = futureDate !== "" ? zstNewVal + dailyConsumption * daysNewToFuture : "-";
+    // - Berechnung des zukünftigen Zählerstands -
+    // Diese Funktion berechnet den erwarteten Zählerstand an einem zukünftigen Datum.
+    // Berücksichtigt:
+    // - Durchschnittlichen Tagesverbrauch
+    // - Überlauf, falls der Zählerstand das Maximum überschreitet
+    if (zstNewVal + dailyConsumption * daysNewToFuture > maxValue) {
+      const overflow = (zstNewVal + dailyConsumption * daysNewToFuture) - maxValue;
+      zstFutureVal = overflow + 1; // Überlaufbehandlung: Zurücksetzen ab 1
+      console.log(`Überlauf erkannt! Zukunfts-Wert nach Korrektur: ${zstFutureVal}`);
+    }
+    else {
+      zstFutureVal = zstNewVal + dailyConsumption * daysNewToFuture;
+    }
 
     // Ausgabe: "Aktuell" zeigt hier die Gesamttage (old-new),
     // "Dazwischen" zeigt die Tage von altem Datum bis Zwischen-Datum (falls vorhanden),
@@ -315,16 +469,19 @@ document.addEventListener("DOMContentLoaded", function () {
     daysBetween.textContent = (betweenDate ? daysOldToBetween : "-");
     daysFuture.textContent = (daysNewToFuture === "-" ? "-" : daysNewToFuture);
 
-
     // Interpolation der Zählerstände
     //let zstBetweenVal = (zstNewVal - zstOldVal) / daysTotalOldToNew * daysBetweenToNew + zstOldVal;
     let zstBetweenVal;
     if (betweenDate) {
       // Interpolieren für das Zwischen-Datum anhand der Tage von alt bis "Dazwischen"
       zstBetweenVal = (zstNewVal - zstOldVal) / daysTotalOldToNew * daysOldToBetween + zstOldVal;
-    } else {
+    }
+    else {
       // Ohne Zwischen-Datum: zstBetween entspricht einfach dem aktuellen Zählerstand
       zstBetweenVal = (zstNewVal - zstOldVal) / daysTotalOldToNew * daysTotalOldToNew + zstOldVal;
+    }
+    if (!betweenDate || isNaN(zstBetweenVal)) {
+      zstBetweenVal = "-";
     }
 
     //let zstFutureVal = futureDate !== "" ?  (zstNewVal - zstOldVal) / daysTotalOldToNew * daysToFuture + zstOldVal  : "-";
@@ -334,24 +491,30 @@ document.addEventListener("DOMContentLoaded", function () {
     let verbrauchToNew;
     if (!betweenDate) {
       verbrauchToNew = calculateConsumption(zstOldVal, zstNewVal, maxValue);
-    } else {
+    }
+    else {
       verbrauchToNew = calculateConsumption(zstBetweenVal, zstNewVal, maxValue);
     }
+
     const verbrauchToBetween = betweenDate ? calculateConsumption(zstOldVal, zstBetweenVal, maxValue) : "-";
+
     //let verbrauchToFuture = (zstFutureVal !== "-" && futureDate !== "") ? calculateConsumption(zstNewVal, zstFutureVal, maxValue) : "-";
     let verbrauchToFuture;
     if (zstFutureVal === "-" || futureDate === "") {
       verbrauchToFuture = "-";
-    } else {
+    }
+    else {
       // Wenn der aktuelle Zählerstand (zstNewVal) unterhalb des definierten maxValue liegt,
       // soll kein Überlauf berechnet werden – einfache Differenzbildung:
       if (zstNewVal < maxValue) {
         verbrauchToFuture = zstFutureVal - zstNewVal;
-      } else {
+      }
+      else {
         // Falls zstNewVal den maxValue erreicht hat oder überschreitet:
         if (zstFutureVal > zstNewVal) {
           verbrauchToFuture = zstFutureVal - zstNewVal;
-        } else {
+        }
+        else {
           verbrauchToFuture = (maxValue - zstNewVal) + zstFutureVal + 1;
         }
       }
@@ -362,10 +525,12 @@ document.addEventListener("DOMContentLoaded", function () {
       if (value < 0) {
         element.classList.add("negative");
         element.classList.remove("overflow");
-      } else if (value > maxValue) {
+      }
+      else if (value > maxValue) {
         element.classList.add("overflow");
         element.classList.remove("negative");
-      } else {
+      }
+      else {
         element.classList.remove("negative", "overflow");
       }
     };
@@ -382,14 +547,23 @@ document.addEventListener("DOMContentLoaded", function () {
     verbrauchFuture.textContent = (verbrauchToFuture === "-" ? "-" : roundValue(verbrauchToFuture));
     verbrauchNew.textContent = roundValue(verbrauchToNew);
     verbrauchBetween.textContent = (verbrauchToBetween === "-" ? "-" : roundValue(verbrauchToBetween));
+
+    // log's
+    console.log(`Zwischenstände: Alter Wert: ${zstOldVal}, Neuer Wert: ${zstNewVal}, Verbrauch: ${verbrauchToNew}`);
+    console.log(`Wintermodus: Tagesverbrauch = ${dailyConsumption}, Wintertage = ${winterDays}`);
+    console.log(`Dazwischen-Wert: ${zstBetweenVal}, Zukunfts-Wert: ${zstFutureVal}`);
+    console.log(`Berechnung Zukunfts-Wert: Neuer Zählerstand = ${zstNewVal}, Tagesverbrauch = ${dailyConsumption}, Tage bis Zukunft = ${daysNewToFuture}`);
+    console.log(`Zukunfts-Wert nach Berechnung: ${zstFutureVal}`);
+
   };
 
-  // ----- Event-Listener -----
+  // *** Event-Listener **************************************************** */
   [datOldInput, datNewInput, datFutureInput, datBetweenInput, zstOldInput, zstNewInput].forEach((element) => {
     element.addEventListener("input", updateCalculation);
   });
   roundingOption.addEventListener("change", updateCalculation);
   vorkommastellenOption.addEventListener("change", updateCalculation);
+  winterModeCheckbox.addEventListener("change", updateCalculation);
 
   // Initiale Berechnung beim Laden der Seite.
   updateCalculation();
