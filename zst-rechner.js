@@ -5,7 +5,8 @@
   * Lizenz: MIT (https://opensource.org/licenses/MIT)
   * Repository: https://github.com/ztatement/ZST-Rechner
   * Erstellt: Tue Apr 01 2025 07:33:03 GMT+0200
-  * Letzte Änderung: Wed Apr 23 2025 14:31:54 GMT+0200
+  * Letzte Änderung: Mon May 12 2025
+  * Version: 2.0
   *
   * Beschreibung:
   * Dieses Skript berechnet und zeigt interpolierte/extrapolierte Zählerstände
@@ -16,37 +17,35 @@
   * Kernfunktionen:
   * - Eingabevalidierung (Zählerstand-Format, Datumsformat, logische Reihenfolge)
   * - Fehleranzeige über Bootstrap-Klassen und Feedback-Elemente
-  * - Berechnung des durchschnittlichen Tagesverbrauchs (ggf. mit Winteranpassung)
-  * - Interpolation des Zählerstands für ein Datum zwischen Start- und Enddatum ("Dazwischen")
-  * - Extrapolation des Zählerstands für ein zukünftiges Datum ("Zukunft")
-  * - Korrekte Verbrauchsberechnung für alle Perioden, inklusive Überlaufbehandlung
-  * - Optionale Winteranpassung (Standard: +2% für Nov, Dez, Jan, Feb)
-  * - Einstellbare Rundungsoptionen für die Ausgabe
-  * - Einstellbare Anzahl der Vorkommastellen des Zählers (beeinflusst max. Wert)
-  * - Initialisierung von Bootstrap Tooltips für Hilfetexte
+  * - Berechnung des durchschnittlichen Tagesverbrauchs
+  * - Präzise Interpolation/Extrapolation von Zählerständen mit optionalem Wintermodus,
+  *   der unterschiedliche Tagesverbräuche für Sommer- und Wintermonate berücksichtigt.
+  * - Korrekte Verbrauchsberechnung für alle Perioden, inklusive Überlaufbehandlung.
+  * - Optionale Winteranpassung (Standard: +2% für Nov, Dez, Jan, Feb).
+  * - Einstellbare Rundungsoptionen für die Ausgabe.
+  * - Einstellbare Anzahl der Vorkommastellen des Zählers (beeinflusst max. Wert).
+  * - Initialisierung von Bootstrap Tooltips für Hilfetexte.
   *
   * Nutzung:
   * - Pflichtfelder (Start-ZST, End-ZST, Start-Datum, End-Datum) müssen ausgefüllt sein.
   * - Berechnungen werden bei jeder gültigen Eingabeänderung automatisch aktualisiert.
- */
+  */
 
 document.addEventListener("DOMContentLoaded", function () {
 
   // *** Globale Konfiguration ********************************************* //
 
   const CONFIG = {
-    // Standard-Maximalwert für 6 Vorkommastellen. Wird später dynamisch angepasst.
-    maxValue: 999999,
-    // Faktor für den Mehrverbrauch in Wintermonaten (1.02 = +2%)
-    winterFactor: 1.02,
-    // Monate, die als Wintermonate gelten (1 = Januar, ..., 12 = Dezember)
-    winterMonths: [11, 12, 1, 2],
+    maxValue: 999999, // Standard-Maximalwert für 6 Vorkommastellen. Wird dynamisch angepasst.
+    winterFactor: 1.02, // Faktor für den Mehrverbrauch in Wintermonaten (1.02 = +2%)
+    winterMonths: [11, 12, 1, 2], // Monate, die als Wintermonate gelten (1 = Jan, ..., 12 = Dez)
   };
 
   // *** Bootstrap Tooltip Initialisierung ********************************* //
 
-  // Aktiviert alle Tooltips auf der Seite, die das Attribut 'data-bs-toggle="tooltip"' haben.
-  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  const tooltipTriggerList = document.querySelectorAll(
+    '[data-bs-toggle="tooltip"]'
+  );
   tooltipTriggerList.forEach((tooltipTriggerEl) => {
     new bootstrap.Tooltip(tooltipTriggerEl);
   });
@@ -63,7 +62,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Einstellungs-Elemente
   const roundingOption = document.getElementById("roundingOption");
-  const vorkommastellenOption = document.getElementById("vorkommastellenOption");
+  const vorkommastellenOption = document.getElementById(
+    "vorkommastellenOption"
+  );
   const winterModeCheckbox = document.getElementById("winterModeCheckbox");
 
   // Ausgabe-Felder (für berechnete Werte)
@@ -91,7 +92,7 @@ document.addEventListener("DOMContentLoaded", function () {
   * @param {string} message - Die Warnungsmeldung.
   */
   const logWarn = (message) => {
-    console.warn(`[Warnung]: ${message}`); // Hier console.warn verwenden
+    console.warn(`[Warnung]: ${message}`);
   };
 
 /**
@@ -102,61 +103,77 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log(`[Debug]: ${message}`);
   };
 
+  // Verhindere Formular-Submit bei Enter in Eingabefeldern
+  const inputFieldsForEnterPrevention = [
+    zstOldInput,
+    zstNewInput,
+    datOldInput,
+    datNewInput,
+    datFutureInput,
+    datBetweenInput,
+  ];
+  inputFieldsForEnterPrevention.forEach((input) => {
+    if (input) { // Stelle sicher, dass das Element existiert
+      input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.keyCode === 13) {
+          event.preventDefault();
+        }
+      });
+    }
+  });
+
   // *** Initialisierung *************************************************** //
 
   // Setzt einen Standardwert für den ältesten Zählerstand, falls das Feld leer ist.
-  if (!zstOldInput.value.trim()) {
-    zstOldInput.value = "0,0"; // Mit Komma für Konsistenz
+  if (zstOldInput && !zstOldInput.value.trim()) {
+    zstOldInput.value = "0,0";
   }
 
   // *** Fehleranzeige-Funktionen ****************************************** //
 
 /**
   * Zeigt eine Fehlermeldung unterhalb eines Eingabefeldes an und markiert das Feld rot.
+  * @param {string} inputElementId - Die ID des Eingabefeldes.
   * @param {string} message - Die anzuzeigende Fehlermeldung.
-  * @param {string} inputElementId - Die ID des Eingabefeldes, bei dem der Fehler auftrat.
   */
   const showError = (inputElementId, message) => {
-    const feedbackElement = document.getElementById(inputElementId + "Feedback");
-    if (feedbackElement) {
-      feedbackElement.textContent = message;
-      feedbackElement.style.display = "block"; // Sicherstellen, dass es sichtbar ist
-      inputField.setAttribute('aria-invalid', 'true');
-    }
     const inputField = document.getElementById(inputElementId);
+    const feedbackElement = document.getElementById(inputElementId + "Feedback");
+
     if (inputField) {
       inputField.classList.add("is-invalid");
-      inputField.setAttribute('aria-invalid', 'false'); // Oder ganz entfernen: inputField.removeAttribute('aria-invalid');
+      inputField.setAttribute("aria-invalid", "true");
+    }
+    if (feedbackElement) {
+      feedbackElement.textContent = message;
+      feedbackElement.style.display = "block";
     }
   };
 
 /**
-  * Versteckt die Fehlermeldung unterhalb eines Eingabefeldes und entfernt die rote Markierung.
+  * Versteckt die Fehlermeldung und entfernt die rote Markierung eines Eingabefeldes.
   * @param {string} inputElementId - Die ID des Eingabefeldes.
   */
   const hideError = (inputElementId) => {
-    const feedbackElement = document.getElementById(inputElementId + "Feedback");
-    if (feedbackElement) {
-      feedbackElement.style.display = "none"; // Verstecken
-      feedbackElement.textContent = ""; // Inhalt leeren
-    }
     const inputField = document.getElementById(inputElementId);
+    const feedbackElement = document.getElementById(inputElementId + "Feedback");
+
     if (inputField) {
       inputField.classList.remove("is-invalid");
+      inputField.removeAttribute("aria-invalid");
+    }
+    if (feedbackElement) {
+      feedbackElement.style.display = "none";
+      feedbackElement.textContent = "";
     }
   };
 
   // *** Validierung und Parsing des Zählerstandes ************************* //
 
 /**
-  * Prüft die Gültigkeit eines Zählerstands basierend auf Format und Vorkommastellen.
-  * - Entfernt Tausenderpunkte.
-  * - Akzeptiert Komma als Dezimaltrennzeichen.
-  * - Prüft die Anzahl der Vorkommastellen gegen die Benutzerauswahl.
-  * - Erlaubt maximal 3 Nachkommastellen.
-  *
-  * @param {string} value - Der eingegebene Zählerstand (z.B. "1.234,567" oder "1234,5").
-  * @param {number} expectedVorkommastellen - Die maximal erlaubte Anzahl an Vorkommastellen.
+  * Prüft die Gültigkeit der Vorkommastellen eines Zählerstands.
+  * @param {string} value - Der eingegebene Zählerstand (z.B. "1.234,567").
+  * @param {number} expectedVorkommastellen - Maximal erlaubte Anzahl Vorkommastellen.
   * @returns {boolean} - True, wenn gültig, sonst False.
   */
   const checkVorkommastellen = (value, expectedVorkommastellen) => {
@@ -166,74 +183,67 @@ document.addEventListener("DOMContentLoaded", function () {
     // Standardisiere Dezimaltrennzeichen und entferne Tausenderpunkte
     const cleanedForParsing = value.replace(/\./g, "").replace(",", ".");
     const numericValue = parseFloat(cleanedForParsing);
+    if (!isNaN(numericValue) && numericValue === 0) return true;
 
-    // Gültig, wenn 0 (unabhängig von Vorkommastellen-Einstellung)
-    if (!isNaN(numericValue) && numericValue === 0) {
-      return true;
-    }
-
-    // Trenne Vor- und Nachkommastellen
-    const parts = value.replace(/\./g, "").split(","); // Entferne Tausenderpunkte, splitte am Komma
-    const vorkommaPart = parts[0].replace(/^0+/, ""); // Entferne führende Nullen
+    const parts = value.replace(/\./g, "").split(",");
+    const vorkommaPart = parts[0].replace(/^0+/, "") || "0"; // Führende Nullen entfernen, "0" wenn leer
     const nachkommaPart = parts[1] || "";
 
-    logDebug(`Vorkomma-Prüfung: Roh='${parts[0]}', Bereinigt='${vorkommaPart}', Erwartet=${expectedVorkommastellen}`);
-
-    // Prüfe Anzahl Vorkommastellen (Länge des bereinigten Teils)
-    if (vorkommaPart.length > expectedVorkommastellen) {
-      logError(`Zu viele Vorkommastellen: ${vorkommaPart.length} > ${expectedVorkommastellen}`);
-      return false;
+    if (vorkommaPart.length > expectedVorkommastellen && vorkommaPart !== "0") {
+      // Erlaube mehr Stellen, wenn der Wert effektiv kleiner ist (z.B. 000123,45 bei 3 VKS ist ok)
+      // Diese Logik ist komplex, daher prüfen wir die Länge des numerischen Teils
+      const numVorkomma = Math.floor(Math.abs(numericValue)).toString();
+      if (numVorkomma.length > expectedVorkommastellen && numVorkomma !== "0") {
+        logError(`Zu viele Vorkommastellen: ${numVorkomma.length} > ${expectedVorkommastellen}`);
+        return false;
+      }
     }
-
     // Prüfe Anzahl Nachkommastellen
     if (nachkommaPart.length > 3) {
       logError(`Zu viele Nachkommastellen: ${nachkommaPart.length} > 3`);
       return false;
     }
-
     return true;
   };
 
 /**
   * Validiert das Format und die Vorkommastellen eines Zählerstand-Eingabefeldes.
-  * Zeigt ggf. eine Fehlermeldung an oder versteckt sie.
   * @param {HTMLInputElement} inputElement - Das zu validierende Input-Element.
   * @param {number} vorkommastellen - Die maximal erlaubte Anzahl Vorkommastellen.
   * @returns {boolean} - True, wenn die Eingabe gültig ist, sonst False.
   */
   const validateZaehlerstandInput = (inputElement, vorkommastellen) => {
     const value = inputElement.value.trim();
-    // Leere Eingabe ist erstmal ok (wird in updateCalculation geprüft)
     if (!value) {
       hideError(inputElement.id);
-      return true; // Nicht 'false', da kein *Fehler* vorliegt, nur fehlende Eingabe
+      return true; // Leere Eingabe ist für sich kein Fehler, wird in updateCalculation behandelt
     }
 
-    // Regex prüft auf: Ziffern, optionale Tausenderpunkte, optionales Komma mit bis zu 3 Nachkommastellen.
-    // Erlaubt z.B.: 123 | 123,4 | 1.234 | 1.234,567 | 0,123
-    const regex = /^(0|[1-9]\d{0,2}(\.\d{3})*)(,\d{1,3})?$/;
-
-    if (!regex.test(value)) {
-      showError(inputElement.id, "Ungültiges Format. Erwartet: 1.234,567");
-      logWarn("Ungültiges Zählerstand-Format: " + value);
-      return false;
+    // Erlaubt: 123 | 123,4 | 1.234 | 1.234,567 | 0,123 | 1234,56 | 123456
+    // Erlaubt auch nur Ziffern ohne Tausenderpunkte.
+    const regex = /^(0|[1-9]\d{0,2}(\.\d{3})*|\d+)(,\d{1,3})?$/;
+    if (!regex.test(value) && value !== "0") { // "0" ist ein Sonderfall, der oft ohne Komma eingegeben wird
+      const simpleNumRegex = /^\d+(,\d{1,3})?$/; // Erlaube auch Zahlen ohne Tausenderpunkte wie 12345,67
+      if (!simpleNumRegex.test(value)) {
+        showError(inputElement.id, "Ungültiges Format. Erwartet z.B. 1.234,567 oder 1234,56");
+        logWarn("Ungültiges Zählerstand-Format: " + value);
+        return false;
+      }
     }
 
     if (!checkVorkommastellen(value, vorkommastellen)) {
-      showError(inputElement.id, `Maximal ${vorkommastellen} Vorkommastellen erlaubt.`);
+      showError(inputElement.id, `Maximal ${vorkommastellen} Vorkommastellen und 3 Nachkommastellen erlaubt.`);
       logWarn("Vorkommastellen-Validierung fehlgeschlagen für: " + value);
       return false;
     }
-
-    // Wenn alles passt, Fehler verstecken
     hideError(inputElement.id);
     return true;
   };
 
 /**
-  * Wandelt einen formatierten Zählerstand-String (z.B. "1.234,56") in eine Zahl um.
+  * Wandelt einen formatierten Zählerstand-String in eine Zahl um.
   * @param {string} value - Der formatierte String.
-  * @returns {number | string} - Die Zahl oder "-", wenn die Eingabe ungültig/leer ist.
+  * @returns {number | string} - Die Zahl oder "-", wenn ungültig/leer.
   */
   const parseValue = (value) => {
     if (!value || !value.trim()) return "-";
@@ -243,6 +253,60 @@ document.addEventListener("DOMContentLoaded", function () {
     return isNaN(number) ? "-" : number;
   };
 
+/**
+  * Formatiert eine Zählerstand-Eingabe ins deutsche Format (Tausenderpunkt, Komma).
+  * @param {string} rawValue - Die Roh-Eingabe.
+  * @returns {string} - Der formatierte Wert oder der Originalwert bei Fehler.
+  */
+  function formatZaehlerstandOnBlur(rawValue) {
+    if (!rawValue || !rawValue.trim()) return "";
+    let cleaned = rawValue.replace(/\s/g, ""); // Alle Leerzeichen entfernen
+
+    // Ersetze mehrfache Punkte/Kommas oder ungültige Zeichen, bevor wir parsen
+    cleaned = cleaned.replace(/,{2,}/g, ',').replace(/\.{2,}/g, '.');
+
+    // Wenn sowohl Punkt als auch Komma vorkommen, behandle Punkt als Tausendertrennzeichen
+    if (cleaned.includes('.') && cleaned.includes(',')) {
+      // Wenn Komma nach dem letzten Punkt, dann ist Komma Dezimaltrennzeichen
+      if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
+        cleaned = cleaned.replace(/\./g, ""); // Punkte als Tausendertrenner entfernen
+      } else {
+        // Wenn Punkt nach dem letzten Komma (ungewöhnlich für DE),
+        // oder umgekehrt, behandle Komma als Tausendertrenner
+        cleaned = cleaned.replace(/,/g, ""); // Kommas als Tausendertrenner entfernen
+      }
+    }
+    // Jetzt sollte nur noch ein Dezimaltrennzeichen (Komma oder Punkt) vorhanden sein
+    cleaned = cleaned.replace(/,/, "."); // Komma zu Punkt für parseFloat
+
+    let num = parseFloat(cleaned);
+    if (isNaN(num)) return rawValue; // Bei Fehler Originalwert zurückgeben
+
+    // Runden auf 3 Nachkommastellen vor der Formatierung
+    // num = Math.round(num * 1000) / 1000; // Standardrundung
+    // Beibehaltung von bis zu 3 Nachkommastellen ohne Rundung der Eingabe
+    const numStr = num.toString();
+    const parts = numStr.split('.');
+    if (parts.length > 1 && parts[1].length > 3) {
+      num = parseFloat(parts[0] + '.' + parts[1].substring(0, 3));
+    }
+
+    // Formatieren mit toLocaleString
+    let formatted = num.toLocaleString("de-DE", {
+      minimumFractionDigits: 0, // Zeige mindestens eine Nachkommastelle, wenn welche vorhanden sind
+      maximumFractionDigits: 3,
+    });
+
+    // Sicherstellen, dass immer ein Komma und mind. eine Null angezeigt wird, wenn es ein Ganzzahlwert ist, außer bei 0
+    // Aber nur wenn der Nutzer nicht explizit z.B. "123" ohne Komma eingegeben hat und es so belassen will
+    // Die Anforderung war "Automatisch ",0" hinzufügen"
+    if (!formatted.includes(",")) {
+        formatted += ",0";
+    }
+
+    return formatted;
+  }
+
   // *** Datum Validierung und Parsing ************************************* //
 
 /**
@@ -251,18 +315,22 @@ document.addEventListener("DOMContentLoaded", function () {
   * @returns {boolean} - True, wenn gültig, sonst False.
   */
   const isValidGermanDate = (dateString) => {
-    if (!dateString) return false;
-    const regex = /^\d{2}\.\d{2}\.\d{4}$/; // TT.MM.JJJJ
-    if (!regex.test(dateString)) return false;
+    if (!dateString || !dateString.trim()) return false;
+    const normalized = normalizeGermanDate(dateString.trim());
+    if (!normalized) return false; // Konnte nicht normalisiert werden
 
-    const [day, month, year] = dateString.split('.').map(Number);
-    // Prüfe auf plausible Werte (Monat 1-12, Tag 1-31 etc.) - einfache Prüfung
-    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
-        return false;
-    }
-    // Erzeuge ein Date-Objekt und prüfe, ob es dem Input entspricht (verhindert ungültige Tage wie 31.04.)
-    const date = new Date(year, month - 1, day); // Monat ist 0-basiert in Date()
-    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+    const regex = /^\d{2}\.\d{2}\.\d{4}$/;
+    if (!regex.test(normalized)) return false;
+
+    const [day, month, year] = normalized.split(".").map(Number);
+    if (year < 1900 || year > 2100 || month < 1 || month > 12) return false;
+
+    const date = new Date(year, month - 1, day);
+    return (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    );
   };
 
 /**
@@ -271,235 +339,422 @@ document.addEventListener("DOMContentLoaded", function () {
   * @returns {Date | null} - Das Date-Objekt oder null bei ungültigem Format.
   */
   const parseGermanDate = (dateString) => {
-    if (!isValidGermanDate(dateString)) return null;
-    const [day, month, year] = dateString.split('.').map(Number);
-    // Wichtig: new Date(year, monthIndex, day) - monthIndex ist 0-basiert!
-    return new Date(year, month - 1, day);
+    if (!dateString || !dateString.trim()) return null;
+    const normalized = normalizeGermanDate(dateString.trim());
+    if (!isValidGermanDate(normalized)) return null; // Erneute Prüfung mit normalisiertem Wert
+    
+    const [day, month, year] = normalized.split(".").map(Number);
+    return new Date(year, month - 1, day, 0, 0, 0, 0); // Setze Uhrzeit auf Mitternacht
   };
 
 /**
-  * Prüft, ob das Datum in einem Wintermonat liegt (definiert in CONFIG.winterMonths).
-  * @param {string | Date} dateInput - Ein Datumsstring (TT.MM.JJJJ) oder ein Date-Objekt.
-  * @returns {boolean} - True, wenn es ein Wintermonat ist, sonst False.
+  * Normalisiert verschiedene Datumsformate in das Format TT.MM.JJJJ.
+  * @param {string} input - Das eingegebene Datum.
+  * @returns {string|null} - Das normalisierte Datum oder null.
   */
-  const isWinterMonth = (dateInput) => {
-    let date;
-    if (typeof dateInput === 'string') {
-      date = parseGermanDate(dateInput);
-    } else if (dateInput instanceof Date) {
-      date = dateInput;
-    } else {
-      return false; // Ungültiger Input
+  const normalizeGermanDate = (input) => {
+    if (!input) return null;
+    const match = input.match(/^(\d{1,2})[\.\-/](\d{1,2})[\.\-/](\d{2,4})$/); // Erlaube ., -, /
+    if (match) {
+      let [_, day, month, year] = match;
+      if (year.length === 2) {
+        year = (parseInt(year, 10) < 70 ? "20" : "19") + year; // 70 als Grenzwert für 20xx vs 19xx
+      }
+      day = day.padStart(2, "0");
+      month = month.padStart(2, "0");
+      return `${day}.${month}.${year}`;
     }
-
-    if (!date || isNaN(date.getTime())) return false; // Prüfen ob Datum gültig ist
-
-    const month = date.getMonth() + 1; // getMonth() ist 0-basiert, daher +1
-    return CONFIG.winterMonths.includes(month);
+    return null; // Format nicht erkannt
   };
   
 /**
-  * Validiert ein Datums-Eingabefeld auf das Format TT.MM.JJJJ.
-  * Setzt ggf. die 'is-invalid' Klasse und eine Custom Validity Message.
-  * @param {HTMLInputElement} inputElement - Das zu validierende Datums-Input-Element.
+  * Prüft, ob das Datum in einem Wintermonat liegt.
+  * @param {Date} dateObject - Ein Date-Objekt.
+  * @returns {boolean} - True, wenn Wintermonat, sonst False.
   */
-  const validateInputDate = (inputElement) => {
+  const isWinterMonth = (dateObject) => {
+    if (!(dateObject instanceof Date) || isNaN(dateObject.getTime())) return false;
+    const month = dateObject.getMonth() + 1; // getMonth() ist 0-basiert
+    return CONFIG.winterMonths.includes(month);
+  };
+
+/**
+  * Validiert ein Datums-Eingabefeld.
+  * @param {HTMLInputElement} inputElement - Das zu validierende Input-Element.
+  */
+ /* const validateInputDate = (inputElement) => {
     const value = inputElement.value.trim();
-    // Leere Eingabe ist ok (wird in updateCalculation behandelt)
     if (!value) {
-      inputElement.classList.remove("is-invalid");
+      hideError(inputElement.id);
       inputElement.setCustomValidity("");
-      hideError(inputElement.id); // Auch Feedback-Element zurücksetzen
+      return; // Leere Eingabe ist ok, wird in updateCalculation behandelt
+    }
+
+    const normalized = normalizeGermanDate(value);
+    if (normalized && normalized !== value) {
+        inputElement.value = normalized; // Korrigiere das Format direkt im Feld
+    }
+
+    if (!isValidGermanDate(inputElement.value)) { // Prüfe den (potenziell korrigierten) Wert
+      showError(inputElement.id,"Ungültiges Format. Erwartet: TT.MM.JJJJ");
+      inputElement.setCustomValidity("Bitte ein gültiges Datum im Format TT.MM.JJJJ eingeben.");
+    } else {
+      hideError(inputElement.id);
+      inputElement.setCustomValidity("");
+    }
+  };*/
+/**
+  * Prüft, ob ein String nur erlaubte Zeichen für eine Datumseingabe enthält.
+  * @param {string} value - Der zu prüfende String.
+  * @returns {boolean} - True, wenn nur Ziffern und erlaubte Trennzeichen enthalten sind.
+  */
+  const hasValidDateChars = (value) => {
+    // Erlaube Ziffern, Punkt, Minus, Slash. Passe dies ggf. an.
+    return /^[0-9\.\-\/]*$/.test(value);
+  };
+
+/**
+  * Validiert ein Datums-Eingabefeld WÄHREND der Eingabe (Live-Feedback).
+  * Setzt nur Styling-Klassen, ändert nicht den Wert.
+  * @param {HTMLInputElement} inputElement - Das zu validierende Input-Element.
+  */
+  const validateInputDateLive = (inputElement) => {
+    const value = inputElement.value.trim();
+    if (!value) {
+      // Feld ist leer, entferne mögliche Fehlermarkierung vom letzten Blur
+      inputElement.classList.remove("is-invalid");
+      inputElement.removeAttribute("aria-invalid");
+      // Verstecke auch die Text-Fehlermeldung, falls sichtbar
+       const feedbackElement = document.getElementById(inputElement.id + "Feedback");
+       if (feedbackElement) {
+          feedbackElement.style.display = "none";
+          feedbackElement.textContent = "";
+       }
       return;
     }
 
-    if (!isValidGermanDate(value)) {
+    // Prüfe nur auf ungültige Zeichen während der Eingabe
+    if (!hasValidDateChars(value)) {
       inputElement.classList.add("is-invalid");
-      // Setze CustomValidity für Browser-Feedback (z.B. bei Formular-Submit)
-      inputElement.setCustomValidity("Bitte ein gültiges Datum im Format TT.MM.JJJJ eingeben.");
-      // Zeige auch das Bootstrap-Feedback-Element an
-      showError(inputElement.id, "Ungültiges Format. Erwartet: TT.MM.JJJJ");
+      inputElement.setAttribute("aria-invalid", "true");
+      // Zeige hier noch keine Text-Fehlermeldung an, nur die Umrandung
     } else {
+      // Gültige Zeichen, entferne die Markierung
       inputElement.classList.remove("is-invalid");
-      inputElement.setCustomValidity("");
-      hideError(inputElement.id); // Fehler ausblenden, wenn gültig
+      inputElement.removeAttribute("aria-invalid");
     }
   };
 
-  // Fügt Event Listener für die Live-Validierung der Datumseingaben hinzu.
-  [datOldInput, datNewInput, datFutureInput, datBetweenInput].forEach((element) => {
-    element.addEventListener("input", () => validateInputDate(element));
+/**
+  * Normalisiert, validiert und setzt den Wert eines Datumsfeldes beim Verlassen (Blur).
+  * Zeigt finale Fehlermeldungen an.
+  * @param {HTMLInputElement} inputElement - Das zu validierende Input-Element.
+  */
+  const normalizeAndValidateDateOnBlur = (inputElement) => {
+    const value = inputElement.value.trim();
+    let normalized = value; // Starte mit dem Originalwert
+
+    if (!value) {
+      hideError(inputElement.id); // Verstecke Fehler, wenn Feld geleert wird
+      inputElement.setCustomValidity("");
+      return; // Leere Eingabe ist ok
+    }
+
+    // Versuche zu normalisieren, auch wenn es noch nicht TT.MM.JJJJ ist
+    const potentialNormalization = normalizeGermanDate(value);
+    if (potentialNormalization) {
+      normalized = potentialNormalization; // Nutze normalisierten Wert für finale Prüfung
+      // Schreibe den normalisierten Wert zurück ins Feld, nur wenn er sich geändert hat
+      // und potenziell gültig aussieht (um zu vermeiden, dass "abc" zu "null" wird)
+      if (normalized !== value) {
+         inputElement.value = normalized;
+      }
+    } else {
+      // Konnte nicht normalisiert werden (z.B. "abc")
+      // normalized bleibt der Originalwert
+    }
+
+    // Finale Validierung mit dem (ggf. normalisierten) Wert
+    if (!isValidGermanDate(normalized)) {
+      // Zeige Fehler nur an, wenn das Feld nicht leer ist
+      showError(inputElement.id,"Ungültiges Datum oder Format. Erwartet: TT.MM.JJJJ");
+      inputElement.setCustomValidity(
+        "Bitte ein gültiges Datum im Format TT.MM.JJJJ eingeben."
+      );
+    } else {
+      // Gültiges Datum nach Normalisierung
+      hideError(inputElement.id);
+      inputElement.setCustomValidity("");
+      // Stelle sicher, dass der korrekt normalisierte Wert im Feld steht (falls oben nicht geschehen)
+      if(inputElement.value !== normalized) {
+          inputElement.value = normalized;
+      }
+    }
+  };
+
+  // *** Event-Listener für Datumsfelder (Angepasste Version) ***
+
+  [datOldInput, datNewInput, datFutureInput, datBetweenInput].forEach(
+    (element) => {
+      if (element) {
+        // 1. Live-Validierung (nur Styling für ungültige Zeichen) während der Eingabe
+        element.addEventListener("input", () => validateInputDateLive(element));
+
+        // 2. Finale Normalisierung, Validierung und Neuberechnung beim Verlassen
+        element.addEventListener("blur", () => {
+          normalizeAndValidateDateOnBlur(element); // Normalisiert Wert und validiert final
+          updateCalculation(); // Neuberechnung auslösen
+        });
+      }
+    }
+  );
+
+  // Live-Validierung und Formatierung für Datumseingaben
+ /* [datOldInput, datNewInput, datFutureInput, datBetweenInput].forEach(
+    (element) => {
+      if (element) {
+        element.addEventListener("input", () => validateInputDate(element)); // Validierung während der Eingabe
+        element.addEventListener("blur", () => { // Normalisierung beim Verlassen
+            validateInputDate(element); // Stellt sicher, dass normalisiert wird und Fehler ggf. angezeigt werden
+            updateCalculation(); // Neuberechnung nach Formatänderung
+        });
+      }
+    }
+  );*/
+
+  // Formatierung für Zählerstände beim Verlassen des Feldes
+  [zstOldInput, zstNewInput].forEach((input) => {
+    if (input) {
+      input.addEventListener("blur", () => { // "blur" statt "change" für direkteres Feedback
+        const currentVorkommastellen = parseInt(vorkommastellenOption.value, 10);
+        if (validateZaehlerstandInput(input, currentVorkommastellen)) {
+          if (input.value.trim()) {
+            input.value = formatZaehlerstandOnBlur(input.value);
+          }
+        }
+        updateCalculation(); // Immer neu berechnen nach potenzieller Formatierung
+      });
+    }
   });
 
-  // *** Zusätzliche Validierung/Formatierung für Zählerstände beim Verlassen des Feldes *** //
-  [zstOldInput, zstNewInput].forEach(input => {
-    input.addEventListener("change", () => {
-      let value = input.value.trim();
-      // Versuche, die aktuelle Anzahl Vorkommastellen zu bekommen
-      const currentVorkommastellen = parseInt(vorkommastellenOption.value, 10);
-      // Validieren mit der aktuellen Einstellung
-      if (!validateZaehlerstandInput(input, currentVorkommastellen)) {
-        // Wenn ungültig, mache nichts weiter hier (Fehler wird schon angezeigt)
-        return;
-      }
-      // Automatisch ",0" hinzufügen, wenn keine Nachkommastellen eingegeben wurden
-      // und der Wert nicht nur aus Punkten besteht (passiert bei leerem Input -> wird zu ".")
-      if (value && !value.includes(",") && !/^\.+$/.test(value.replace(/\d/g,''))) {
-        // Nur hinzufügen, wenn es sich nicht um den Wert "0" handelt
-        if (parseValue(value) !== 0) {
-          input.value = value + ",0";
-        } else {
-          // Falls der Wert 0 ist, als "0,0" formatieren
-          input.value = "0,0";
-        }
-      }
-    });
-  });
 
   // *** Berechnungsfunktionen ********************************************* //
 
 /**
   * Berechnet den Verbrauch zwischen zwei Zählerständen, berücksichtigt Überlauf.
-  * Der Überlauf passiert, wenn oldValue > newValue.
-  * @param {number} oldValue - Der vorherige Zählerstand (als Zahl).
-  * @param {number} newValue - Der aktuelle Zählerstand (als Zahl).
-  * @param {number} maxValue - Der maximale Wert des Zählers vor dem Überlauf (z.B. 999999).
-  * @returns {number | string} - Der berechnete Verbrauch oder "-" bei ungültigen Eingaben.
+  * @param {number} oldValue - Der vorherige Zählerstand.
+  * @param {number} newValue - Der aktuelle Zählerstand.
+  * @param {number} maxValue - Der maximale Wert des Zählers.
+  * @returns {number | string} - Der berechnete Verbrauch oder "-".
   */
   const calculateConsumption = (oldValue, newValue, maxValue) => {
-    // Sicherstellen, dass beide Werte gültige Zahlen sind
-    if (typeof oldValue !== 'number' || isNaN(oldValue) || typeof newValue !== 'number' || isNaN(newValue)) {
-      logError(`Ungültige Werte für Verbrauchsrechnung: Alt=${oldValue}, Neu=${newValue}`);
-      return "-"; // Oder 0 oder NaN, je nach gewünschtem Fehlerhandling
-    }
-
-    if (oldValue > newValue) {
-      // Überlauf erkannt
-      logDebug(`Überlauf bei Verbrauchsberechnung! Alt: ${oldValue}, Neu: ${newValue}, Max: ${maxValue}`);
-      // Formel: (Rest bis Maximum) + Neuer Wert + 1 (für den Schritt über den Nullpunkt)
-      return (maxValue - oldValue) + newValue + 1;
-    } else {
-      // Kein Überlauf, einfache Differenz
+    if (oldValue === "-" || newValue === "-") return "-";
+    if (newValue >= oldValue) {
       return newValue - oldValue;
-    }
-  };
-
-/**
-  * Berechnet optional einen angepassten Verbrauch mit Winterzuschlag.
-  * Wendet einen prozentualen Zuschlag (CONFIG.winterFactor) auf den Verbrauch an,
-  * der anteilig auf die Tage in Wintermonaten (CONFIG.winterMonths) entfällt.
-  *
-  * @param {string} startDateStr - Startdatum im Format TT.MM.JJJJ.
-  * @param {string} endDateStr - Enddatum im Format TT.MM.JJJJ.
-  * @param {number} baseConsumption - Der ursprüngliche Verbrauch im Gesamtzeitraum.
-  * @returns {{adjustedConsumption: number, winterDays: number}} - Objekt mit angepasstem Verbrauch und Anzahl der Wintertage.
-  */
-  const calculateWinterAdjustedConsumption = (startDateStr, endDateStr, baseConsumption) => {
-    const start = parseGermanDate(startDateStr);
-    const end = parseGermanDate(endDateStr);
-
-    // Prüfe Inputs
-    if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || typeof baseConsumption !== 'number' || isNaN(baseConsumption) || baseConsumption < 0) {
-      logDebug("Winteranpassung übersprungen: Ungültige Daten oder Verbrauch.");
-      return { adjustedConsumption: baseConsumption, winterDays: 0 };
-    }
-    if (start >= end) {
-       logDebug("Winteranpassung übersprungen: Startdatum liegt nicht vor Enddatum.");
-       return { adjustedConsumption: baseConsumption, winterDays: 0 };
-    }
-
-
-    let winterDaysCount = 0;
-    let totalDaysCount = 0;
-    const oneDay = 1000 * 60 * 60 * 24; // Millisekunden pro Tag
-
-    // Iteriere durch jeden Tag im Zeitraum (inklusive Start- und Endtag)
-    for (let d = new Date(start); d <= end; d.setTime(d.getTime() + oneDay)) {
-      totalDaysCount++;
-      // Kopie des Datums für isWinterMonth erstellen, um Original nicht zu verändern
-      if (isWinterMonth(new Date(d))) {
-        winterDaysCount++;
-      }
-    }
-    // Korrektur: Der letzte Tag wird in der Schleife übersprungen, wenn d <= end verwendet wird.
-    // Alternative: calculateDays verwenden
-    totalDaysCount = calculateDays(startDateStr, endDateStr);
-    // Manuelle Zählung der Wintertage bleibt genauer
-    winterDaysCount = 0; // Neu zählen
-    if (totalDaysCount > 0) {
-      let currentDate = new Date(start);
-      for (let i = 0; i < totalDaysCount; i++) {
-        if (isWinterMonth(currentDate)) {
-          winterDaysCount++;
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
     } else {
-      totalDaysCount = 0; // Sicherstellen, dass es nicht negativ ist
+      // Überlauf: (Maximalwert - alter Wert) + neuer Wert + 1 (für den Sprung von maxValue auf 0)
+      return maxValue - oldValue + newValue + 1;
     }
-
-    logDebug(`Wintertage gezählt: ${winterDaysCount} von ${totalDaysCount} Gesamttagen.`);
-
-    if (totalDaysCount <= 0 || winterDaysCount === 0) {
-      // Keine Anpassung nötig, wenn keine Tage oder keine Wintertage im Zeitraum liegen
-      return { adjustedConsumption: baseConsumption, winterDays: winterDaysCount };
-    }
-
-    // Berechne den durchschnittlichen Tagesverbrauch (Basis)
-    const averageDailyConsumption = baseConsumption / totalDaysCount;
-
-    // Berechne den zusätzlichen Verbrauch nur für die Wintertage
-    // Zusatz = Tagesverbrauch * Anzahl Wintertage * (Winterfaktor - 1)
-    // Beispiel: 10 Einheiten/Tag * 30 Wintertage * (1.02 - 1) = 10 * 30 * 0.02 = 6 Einheiten extra
-    const additionalWinterConsumption = averageDailyConsumption * winterDaysCount * (CONFIG.winterFactor - 1);
-
-    // Addiere den zusätzlichen Verbrauch zum Basisverbrauch
-    const finalAdjustedConsumption = baseConsumption + additionalWinterConsumption;
-
-    logDebug(`Winteranpassung: Basis=${baseConsumption.toFixed(3)}, Zusatz=${additionalWinterConsumption.toFixed(3)}, Angepasst=${finalAdjustedConsumption.toFixed(3)}`);
-
-    return {
-      adjustedConsumption: finalAdjustedConsumption,
-      winterDays: winterDaysCount // Gebe die gezählten Wintertage zurück
-    };
   };
 
 /**
-  * Berechnet die Anzahl der Tage zwischen zwei Daten (inklusive Enddatum).
-  * @param {string} startDateStr - Startdatum (TT.MM.JJJJ).
-  * @param {string} endDateStr - Enddatum (TT.MM.JJJJ).
-  * @returns {number | string} - Anzahl der Tage oder "-" bei ungültigen Daten.
+  * Berechnet die exakte Dauer zwischen zwei Zeitpunkten (angenommen Mitternacht) in Tagen.
+  * Entspricht der Definition Start 00:00:01 bis Ende 00:00:00.
+  * @param {Date} startDate - Das Startdatum als Date-Objekt (00:00:00).
+  * @param {Date} endDate - Das Enddatum als Date-Objekt (00:00:00).
+  * @returns {number | string} - Exakte Dauer in Tagen oder "-".
   */
-  const calculateDays = (startDateStr, endDateStr) => {
-    const start = parseGermanDate(startDateStr);
-    const end = parseGermanDate(endDateStr);
+  const calculateDurationInDays = (startDate, endDate) => {
+    if (!(startDate instanceof Date) || isNaN(startDate.getTime()) ||
+        !(endDate instanceof Date) || isNaN(endDate.getTime()) ||
+        startDate.getTime() > endDate.getTime()) { // Erlaube startDate == endDate (Dauer 0)
+        if (startDate && endDate && startDate.getTime() === endDate.getTime()) {
+            return 0; // Dauer ist 0, wenn Start und Ende gleich
+        }
+        logError(`Ungültige Daten für Dauerberechnung: Start=<span class="math-inline">\{startDate\}, Ende\=</span>{endDate}`);
+        return "-";
+    }
+    const diffTime = endDate.getTime() - startDate.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    // Normalerweise exakte ganze Zahl, wenn Zeitpunkte Mitternacht sind.
+    // Zur Sicherheit auf Rundungsfehler prüfen und ggf. runden?
+    // return Math.round(diffDays * 1e6) / 1e6; // Runde auf 6 Nachkommastellen
+    return diffDays; // Meistens ist keine Rundung nötig
+  };
 
-    if (!start || !end || isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
-      logError(`Ungültige Daten für Tagesberechnung: Start=${startDateStr}, Ende=${endDateStr}`);
+/**
+  * Hilfsfunktion: Passt einen Zählerstandswert bei Überschreitung des Maximalwerts an (Überlauf).
+  * @param {number} value - Der Rohwert des Zählerstands.
+  * @param {number} maxValue - Der Maximalwert des Zählers.
+  * @returns {number} - Der korrigierte Wert nach Überlauf.
+  */
+  const adjustForOverflow = (value, maxValue) => {
+    // Beispiel: maxValue = 999. Zst = 998. Verbrauch = 5. Neu wäre 1003.
+    // (1003 - 1) % 1000 + 1 = 1002 % 1000 + 1 = 2 + 1 = 3. Falsch.
+    // maxValue ist der höchste anzeigbare Wert. Der Zähler geht von maxValue auf 0.
+    // Wenn value = 1003, maxValue = 999.
+    // Dann ist es (value - (maxValue + 1))
+    // Korrekte Logik: Wenn Zähler von z.B. 999 auf 0 springt, ist der "Bereich" maxValue + 1.
+    // Beispiel: Zähler max 999. Stand alt 998. Verbrauch 5. Stand neu sollte 3 sein.
+    // 998 + 5 = 1003.  1003 % (999 + 1) = 1003 % 1000 = 3.
+    if (value > maxValue) {
+      return value % (maxValue + 1);
+    }
+    return value;
+    // Die vorherige Logik war: return value > maxValue ? value - maxValue - 1 : value;
+    // Diese ist für den Fall gedacht, dass ein Verbrauch addiert wird, der über maxValue hinausgeht.
+    // Die Modulo-Operation ist hier generischer.
+};
+
+
+/**
+  * Interpoliert/Extrapoliert den Zählerstand für ein Zieldatum. (Erneute Prüfung)
+  * Berücksichtigt optional den Wintermodus für eine genauere Verbrauchsverteilung.
+  * @param {number} zstRef1 - Referenz-Zählerstand 1 (z.B. zstOld).
+  * @param {number} zstRef2 - Referenz-Zählerstand 2 (z.B. zstNew).
+  * @param {Date} dateRef1 - Referenz-Datum 1 (als Date-Objekt).
+  * @param {Date} dateRef2 - Referenz-Datum 2 (als Date-Objekt).
+  * @param {Date} dateTarget - Zieldatum (als Date-Objekt).
+  * @param {number} maxValue - Maximalwert des Zählers.
+  * @param {boolean} isWinterModeActive - Ob der Wintermodus aktiv ist.
+  * @param {object} config - Das CONFIG-Objekt mit winterFactor und winterMonths.
+  * @returns {number | string} - Der interpolierte/extrapolierte Zählerstand oder "-".
+  */
+  const getZstAtTargetDate = (
+    zstRef1, zstRef2, dateRef1, dateRef2, dateTarget,
+    maxValue, isWinterModeActive, config
+  ) => {
+    // --- Eingangsvalidierung ---
+    if (zstRef1 === "-" || zstRef2 === "-" ||
+      !(dateRef1 instanceof Date) || isNaN(dateRef1.getTime()) ||
+      !(dateRef2 instanceof Date) || isNaN(dateRef2.getTime()) ||
+      !(dateTarget instanceof Date) || isNaN(dateTarget.getTime())) {
+      logWarn("getZstAtTargetDate: Ungültige Eingabeparameter.");
       return "-";
     }
-    // Differenz in Millisekunden / Millisekunden pro Tag. +1 um das Enddatum einzuschließen.
-    const diffTime = Math.abs(end - start);
-    // Math.ceil, um sicherzustellen, dass auch Bruchteile eines Tages als voller Tag zählen (obwohl bei Mitternacht zu Mitternacht nicht nötig)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 Inklusive Endtag
 
-    // Korrektur: Wenn start und end am gleichen Tag sind, ist die Differenz 0, Ergebnis sollte 1 sein.
-    // Wenn end einen Tag nach start ist, ist die Differenz 1 Tag (in ms), Ergebnis sollte 2 sein.
-    // Die Formel `Math.ceil(diffTime / msPerDay) + 1` scheint korrekt zu sein.
+    // --- Dauer des Referenzzeitraums ---
+    const durationRefPeriod = calculateDurationInDays(dateRef1, dateRef2); // <-- Geändert
+    if (durationRefPeriod === "-" || durationRefPeriod < 0) { // Dauer kann 0 sein
+      logWarn(`getZstAtTargetDate: Ungültiger Referenzzeitraum (${durationRefPeriod} Tage).`);
+      return "-";
+    }
+    // Sonderfall 0 Dauer: Wenn Zieldatum gleich Start/Enddatum, gib zstRef1 zurück
+    if (durationRefPeriod === 0) {
+      return (dateTarget.getTime() === dateRef1.getTime()) ? zstRef1 : "-"; // Nur gültig, wenn Ziel = Start
+    }
 
-    return diffDays;
+    // --- Gesamtverbrauch im Referenzzeitraum --- (bleibt gleich)
+    const consumptionRefPeriod = calculateConsumption(zstRef1, zstRef2, maxValue);
+    if (consumptionRefPeriod === "-") return "-";
+    if (consumptionRefPeriod === 0) return zstRef1;
+
+    // --- Dauer vom Referenzstart bis zum Zieldatum ---
+    let durationFromRef1ToTarget;
+    if (dateTarget.getTime() < dateRef1.getTime()) { // Ziel liegt vor Referenzstart
+       durationFromRef1ToTarget = calculateDurationInDays(dateTarget, dateRef1); // Dauer ist positiv
+       if (durationFromRef1ToTarget === "-") return "-";
+       durationFromRef1ToTarget = -durationFromRef1ToTarget; // Mache sie negativ
+    } else { // Ziel liegt nach oder auf Referenzstart
+       durationFromRef1ToTarget = calculateDurationInDays(dateRef1, dateTarget); // Dauer ist positiv oder 0
+       if (durationFromRef1ToTarget === "-") return "-";
+    }
+
+    // --- Verbrauch bis zum Zieldatum berechnen ---
+    let consumptionToTarget;
+
+    if (isWinterModeActive && config && config.winterFactor && config.winterMonths) {
+      // --- Wintermodus ---
+      let winterDaysInRefPeriod = 0;
+      let tempDateRef = new Date(dateRef1);
+      // Zähle Tage im Intervall [dateRef1, dateRef2) - exklusive Enddatum
+      for (let i = 0; i < durationRefPeriod; i++) { // Iteriere durationRefPeriod mal
+        if (isWinterMonth(tempDateRef)) {
+            winterDaysInRefPeriod++;
+        }
+        tempDateRef.setDate(tempDateRef.getDate() + 1);
+      }
+      // ACHTUNG: Wenn durationRefPeriod nicht ganzzahlig ist, ist diese Schleife falsch.
+      // Besser: Schleife bis tempDateRef.getTime() < dateRef2.getTime()
+      winterDaysInRefPeriod = 0; // Neu zählen mit Zeitvergleich
+      tempDateRef = new Date(dateRef1);
+      while(tempDateRef.getTime() < dateRef2.getTime()){
+        if (isWinterMonth(tempDateRef)) {
+          winterDaysInRefPeriod++;
+        }
+        tempDateRef.setDate(tempDateRef.getDate() + 1);
+      }
+      // -----
+
+      const summerDaysInRefPeriod = durationRefPeriod - winterDaysInRefPeriod; // Dauer kann float sein!
+
+      // Korrektur: Die Anzahl der Tage ist die Dauer. Der Divisor braucht die effektive Anzahl Tage.
+      const effectiveDaysInRefPeriod = summerDaysInRefPeriod + winterDaysInRefPeriod * config.winterFactor;
+
+      if (effectiveDaysInRefPeriod === 0) {
+          logWarn("getZstAtTargetDate: Wintermodus - effektive Tage sind 0.");
+          return (consumptionRefPeriod === 0) ? zstRef1 : "-";
+      }
+      const baseRatePerEffectiveDay = consumptionRefPeriod / effectiveDaysInRefPeriod; // Verbrauch pro "Sommertag"
+
+      // Zähle effektive Tage im Zeitraum bis zum Ziel [dateRef1, dateTarget)
+      let effectiveDaysToTarget = 0;
+      let tempDateTarget = new Date(dateRef1);
+
+      if (durationFromRef1ToTarget > 0) { // Ziel nach Start
+        // Schleife von dateRef1 bis dateTarget (exklusiv)
+        while(tempDateTarget.getTime() < dateTarget.getTime()){
+          let factor = isWinterMonth(tempDateTarget) ? config.winterFactor : 1;
+          effectiveDaysToTarget += factor;
+          tempDateTarget.setDate(tempDateTarget.getDate() + 1);
+        }
+      } else if (durationFromRef1ToTarget < 0) { // Ziel vor Start
+        // Schleife von dateTarget bis dateRef1 (exklusiv)
+        tempDateTarget = new Date(dateTarget);
+        while(tempDateTarget.getTime() < dateRef1.getTime()){
+          let factor = isWinterMonth(tempDateTarget) ? config.winterFactor : 1;
+          effectiveDaysToTarget += factor;
+          tempDateTarget.setDate(tempDateTarget.getDate() + 1);
+        }
+        effectiveDaysToTarget = -effectiveDaysToTarget; // Effektive "negative" Dauer
+      }
+
+      consumptionToTarget = baseRatePerEffectiveDay * effectiveDaysToTarget;
+
+    } else {
+      // --- Lineare Interpolation/Extrapolation ---
+      // Verbrauch pro Tag = Gesamtverbrauch / Gesamtdauer
+      const dailyRateLinear = consumptionRefPeriod / durationRefPeriod;
+      consumptionToTarget = dailyRateLinear * durationFromRef1ToTarget;
+    }
+
+    // --- Finalen Zählerstand berechnen --- 
+    if (isNaN(consumptionToTarget)) {
+      logError("getZstAtTargetDate: consumptionToTarget ist NaN.");
+      return "-"; 
+    }
+
+    let calculatedZst = zstRef1 + consumptionToTarget;
+
+    // Rückwärts-Überlauf prüfen
+    if (calculatedZst < 0 && zstRef1 >= 0 && consumptionToTarget < 0) {
+        calculatedZst = (maxValue + 1) + calculatedZst;
+    }
+
+    // Wende normalen Überlauf an (Modulo)
+    return adjustForOverflow(calculatedZst, maxValue);
+
   };
 
   // *** Formatierungs- und Rundungsfunktionen ***************************** //
 
 /**
-  * Formatiert eine Zahl nach deutschen Regeln (Tausenderpunkte, Komma als Dezimaltrennzeichen).
+  * Formatiert eine Zahl nach deutschen Regeln.
   * @param {number} value - Die zu formatierende Zahl.
   * @returns {string} - Der formatierte String.
   */
-  const formatNumber = (value) => {
-    if (typeof value !== 'number' || isNaN(value)) return "-";
-    // Mindestens 0, maximal 3 Nachkommastellen anzeigen
+  const formatNumberOutput = (value) => {
+    if (typeof value !== "number" || isNaN(value)) return "-";
     return value.toLocaleString("de-DE", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 3,
@@ -507,19 +762,17 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
 /**
-  * Rundet einen Wert basierend auf der Benutzerauswahl (Standard, Abrunden, Keine).
-  * Formatiert das Ergebnis anschließend.
+  * Rundet einen Wert basierend auf der Benutzerauswahl und formatiert ihn.
   * @param {number | string} value - Der zu rundende Wert.
-  * @returns {string} - Der gerundete und formatierte Wert als String, oder "-" bei ungültiger Eingabe.
+  * @returns {string} - Der gerundete und formatierte Wert als String.
   */
-  const roundValue = (value) => {
-    const number = typeof value === 'string' ? parseValue(value) : value; // Sicherstellen, dass es eine Zahl ist
-
-    if (number === "-" || typeof number !== 'number' || isNaN(number)) {
+  const roundValueForDisplay = (value) => {
+    const number = typeof value === "string" ? parseValue(value) : value;
+    if (number === "-" || typeof number !== "number" || isNaN(number)) {
       return "-";
     }
 
-    const roundingMethod = roundingOption.value || "standard"; // 'standard', 'floor', 'none'
+    const roundingMethod = roundingOption.value || "standard";
     let roundedValue;
 
     switch (roundingMethod) {
@@ -527,7 +780,8 @@ document.addEventListener("DOMContentLoaded", function () {
         roundedValue = Math.floor(number);
         break;
       case "none":
-        // parseFloat(toFixed(3)) entfernt unnötige Nullen, behält aber bis zu 3 Stellen
+        // Hier parseFloat(toFixed(3)) um unerwünschtes wissenschaftliches Format zu vermeiden und Nullen zu trimmen.
+        // Wir wollen bis zu 3 Nachkommastellen beibehalten.
         roundedValue = parseFloat(number.toFixed(3));
         break;
       case "standard":
@@ -535,57 +789,50 @@ document.addEventListener("DOMContentLoaded", function () {
         roundedValue = Math.round(number);
         break;
     }
-    // Formatiere das gerundete Ergebnis für die Anzeige
-    return formatNumber(roundedValue);
+    return formatNumberOutput(roundedValue);
   };
 
 /**
-  * Setzt CSS-Klassen 'negative' oder 'overflow' basierend auf dem Wert.
-  * @param {HTMLElement} element - Das DOM-Element, das gestylt werden soll.
+  * Setzt CSS-Klassen 'negative' basierend auf dem Wert.
+  * @param {HTMLElement} element - Das DOM-Element.
   * @param {number | string} value - Der numerische Wert oder "-".
-  * @param {number} maxValue - Der Maximalwert des Zählers für die Overflow-Prüfung.
   */
-  const setClassByValue = (element, value, maxValue) => {
-    // Entferne zuerst alle relevanten Klassen
-    element.classList.remove("negative", "overflow");
-
-    if (typeof value === 'number' && !isNaN(value)) {
-      if (value < 0) {
-        element.classList.add("negative");
-      }
-      // 'overflow' Klasse wird hier nicht direkt gesetzt, da der Zählerstand selbst
-      // nach Überlauf wieder klein ist. Overflow wird nur geloggt.
-      // Diese Funktion ist primär für 'negative' gedacht.
-      // else if (value > maxValue) { // Diese Bedingung trifft nach Überlauf nicht zu.
-      //   element.classList.add("overflow");
-      // }
+  const setClassByValue = (element, value) => {
+    element.classList.remove("negative");
+    const numValue = typeof value === 'string' ? parseValue(value) : value;
+    if (typeof numValue === "number" && !isNaN(numValue) && numValue < 0) {
+      element.classList.add("negative");
     }
   };
 
-  // *** Hauptfunktion zur Aktualisierung der Berechnungen und der Anzeige *** //
-
+  // *** Hauptfunktion zur Aktualisierung der Berechnungen und der Anzeige (Angepasst) *** //
   const updateCalculation = () => {
     logDebug("--- Starte Neuberechnung ---");
 
-    // *** 1. Eingaben sammeln und Validierung der Grundvoraussetzungen *** //
-
-    const oldDateStr = datOldInput.value.trim();
-    const newDateStr = datNewInput.value.trim();
-    const futureDateStr = datFutureInput.value.trim();
-    const betweenDateStr = datBetweenInput.value.trim();
+    // --- 1. Eingaben sammeln und Basisvalidierung ---
+    const vorkommastellen = parseInt(vorkommastellenOption.value, 10);
+    const currentMaxValue = Math.pow(10, vorkommastellen) - 1;
+    // CONFIG.maxValue wird jetzt nicht mehr global gesetzt, da currentMaxValue lokal verwendet wird
+    // und getZstAtTargetDate etc. den Wert als Parameter bekommen.
 
     const zstOldStr = zstOldInput.value.trim();
     const zstNewStr = zstNewInput.value.trim();
+    const datOldStr = datOldInput.value.trim();
+    const datNewStr = datNewInput.value.trim();
+    const datBetweenStr = datBetweenInput.value.trim();
+    const datFutureStr = datFutureInput.value.trim();
 
-    const vorkommastellen = parseInt(vorkommastellenOption.value, 10); // Als Zahl holen
-    const maxValue = Math.pow(10, vorkommastellen) - 1; // Berechne maxValue dynamisch
-
+    // --- Standardwerte für Ausgaben ---
+    const clearOutputs = () => {
     // Deklariere zstBetweenVal und zstFutureVal am Anfang mit einem Standardwert
     let zstBetweenVal = "-";
     let zstFutureVal = "-";
+    };
 
-    // Prüfung auf vollständige Pflichteingaben
-    if (!zstOldStr || !zstNewStr || !oldDateStr || !newDateStr) {
+    // --- 2. Validierung der Pflichteingaben und Formatkonsistenz ---
+    let inputsValid = true;
+        // Prüfung auf vollständige Pflichteingaben
+    if (!zstOldStr || !zstNewStr || !datOldStr || !datNewStr) {
       logDebug("Berechnung abgebrochen: Pflichtfelder nicht vollständig ausgefüllt.");
       // Optional: Ausgabefelder leeren oder Meldung anzeigen
       zstBetween.textContent = "-";
@@ -598,40 +845,42 @@ document.addEventListener("DOMContentLoaded", function () {
       daysFuture.textContent = "-";
       return;
     }
-
-    // Validierung der Zählerstände und Daten direkt hier, bevor Werte geparst werden
-    let inputsValid = true;
     if (!validateZaehlerstandInput(zstOldInput, vorkommastellen)) inputsValid = false;
     if (!validateZaehlerstandInput(zstNewInput, vorkommastellen)) inputsValid = false;
-    if (!isValidGermanDate(oldDateStr)) inputsValid = false; // validateInputDate wurde schon per Listener getriggert
-    if (!isValidGermanDate(newDateStr)) inputsValid = false;
-    if (futureDateStr && !isValidGermanDate(futureDateStr)) inputsValid = false;
-    if (betweenDateStr && !isValidGermanDate(betweenDateStr)) inputsValid = false;
+    if (!isValidGermanDate(datOldStr)) inputsValid = false;
+    if (!isValidGermanDate(datNewStr)) inputsValid = false;
+    if (datBetweenStr && !isValidGermanDate(datBetweenStr)) inputsValid = false;
+    if (datFutureStr && !isValidGermanDate(datFutureStr)) inputsValid = false;
 
-    // Datumslogik prüfen: newDate > oldDate etc.
-    const oldDate = parseGermanDate(oldDateStr);
-    const newDate = parseGermanDate(newDateStr);
-    if (!oldDate || !newDate || newDate <= oldDate) {
+    // --- 3. Daten parsen ---
+    const zstOldVal = parseValue(zstOldStr);
+    const zstNewVal = parseValue(zstNewStr);
+    const dateOld = parseGermanDate(datOldStr);
+    const dateNew = parseGermanDate(datNewStr);
+    const dateBetween = datBetweenStr ? parseGermanDate(datBetweenStr) : null;
+    const dateFuture = datFutureStr ? parseGermanDate(datFutureStr) : null;
+
+    if (zstOldVal === "-" || zstNewVal === "-" || !dateOld || !dateNew) {
+      logError("Fehler beim Parsen der Zählerstände trotz Validierung.");
+      return;
+    }
+
+    // --- 4. Logische Datumsprüfungen ---
+    if (dateNew.getTime() <= dateOld.getTime()) {
       showError(datNewInput.id, "Das 'Neue Datum' muss nach dem 'Alten Datum' liegen.");
       inputsValid = false;
-    } else {
-      hideError(datNewInput.id); // Fehler entfernen, falls vorher vorhanden
-    }
-
-    const betweenDate = parseGermanDate(betweenDateStr);
-    if (betweenDate && (betweenDate <= oldDate || betweenDate >= newDate)) {
-      showError(datBetweenInput.id, "Das 'Dazwischen Datum' muss zwischen dem alten und neuen Datum liegen.");
-      inputsValid = false;
-    } else if (betweenDate) {
-      hideError(datBetweenInput.id);
-    }
-
-    const futureDate = parseGermanDate(futureDateStr);
-    if (futureDate && futureDate <= newDate) {
+    } else { hideError(datNewInput.id); } // Fehler entfernen, falls vorher vorhanden
+    if (dateBetween) {
+      
+      if (dateBetween.getTime() <= dateOld.getTime() || dateBetween.getTime() >= dateNew.getTime()) {
+        showError(datBetweenInput.id, "Das 'Dazwischen Datum' muss zwischen dem alten und neuen Datum liegen.");
+        inputsValid = false; } else { hideError(datBetweenInput.id); }
+        }
+    if (dateFuture) {
+      
+      if (dateFuture.getTime() <= dateNew.getTime()) { 
       showError(datFutureInput.id, "Das 'Zukunftsdatum' muss nach dem 'aktuellen Datum' liegen.");
-      inputsValid = false;
-    } else if (futureDate) {
-      hideError(datFutureInput.id);
+      inputsValid = false; } else { hideError(datFutureInput.id); }
     }
 
     if (!inputsValid) {
@@ -641,185 +890,129 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // *** 2. Werte parsen *** //
+    // --- 5. Kernberechnungen ---
+    const isWinterMode = winterModeCheckbox.checked;
 
-    const zstOldVal = parseValue(zstOldStr);
-    const zstNewVal = parseValue(zstNewStr);
-
-    // Wenn Parsing fehlschlägt (sollte durch Validierung oben verhindert werden)
-    if (zstOldVal === "-" || zstNewVal === "-") {
-      logError("Fehler beim Parsen der Zählerstände trotz Validierung.");
-      return;
-    }
-
-    // *** 3. Tage berechnen *** //
-
-    const daysTotalOldToNew = calculateDays(oldDateStr, newDateStr);
-    const daysOldToBetween = betweenDate ? calculateDays(oldDateStr, betweenDateStr) : "-";
-    const daysNewToFuture = futureDate ? calculateDays(newDateStr, futureDateStr) : "-";
-    // Tage zwischen 'Between' und 'New' (nur intern benötigt, falls ZST dazwischen berechnet wird)
-    const daysBetweenToNew = betweenDate ? calculateDays(betweenDateStr, newDateStr) : "-";
-
-    // *** 4. Korrekten Gesamtverbrauch und Tagesverbrauch berechnen *** //
-
-    // Dieser Schritt MUSS vor der Interpolation/Extrapolation erfolgen!
-    // *** 4a. Korrekten Gesamtverbrauch zwischen oldDate und newDate berechnen (mit Überlauf) *** //
-    const totalConsumptionCorrected = calculateConsumption(zstOldVal, zstNewVal, maxValue);
-    if (totalConsumptionCorrected === "-") {
-      logError("Berechnung abgebrochen: Fehler bei der Gesamtverbrauchs-Berechnung.");
-      return; // Abbruch, wenn Basisverbrauch nicht ermittelt werden kann
-    }
-
-    // *** 4b. Tagesverbrauch berechnen (Basis: korrigierter Gesamtverbrauch) *** //
-    let dailyConsumption = 0;
-    let adjustedConsumption = totalConsumptionCorrected; // Startwert, wird ggf. angepasst
-    let winterDays = 0; // Zurückgegebene Wintertage
-
-    if (daysTotalOldToNew > 0) {
-      // Winteranpassung ANWENDEN, falls Checkbox aktiv ist
-      if (winterModeCheckbox.checked) {
-        const winterResult = calculateWinterAdjustedConsumption(oldDateStr, newDateStr, totalConsumptionCorrected);
-        adjustedConsumption = winterResult.adjustedConsumption; // Verwende angepassten Verbrauch
-        winterDays = winterResult.winterDays; // Merke dir Anzahl Wintertage
-        logDebug(`Winteranpassung aktiv: Angepasster Gesamtverbrauch = ${adjustedConsumption.toFixed(3)}, Wintertage = ${winterDays}`);
-      } else {
-        logDebug(`Winteranpassung deaktiviert.`);
-        // adjustedConsumption bleibt gleich totalConsumptionCorrected
+    // --- Berechnung für "Dazwischen" ---
+    let zstBetweenVal = "-";
+    let consumptionOldToBetween = "-";
+    let durationOldToBetweenVal = "-"; // Neuer Name
+    if (dateBetween) {
+      durationOldToBetweenVal = calculateDurationInDays(dateOld, dateBetween); // <-- Geändert
+      if (durationOldToBetweenVal !== "-") {
+        zstBetweenVal = getZstAtTargetDate(
+          zstOldVal, zstNewVal, dateOld, dateNew, dateBetween,
+          currentMaxValue, isWinterMode, CONFIG
+        );
+        if (zstBetweenVal !== "-") {
+          consumptionOldToBetween = calculateConsumption(zstOldVal, zstBetweenVal, currentMaxValue);
+        }
       }
-
-      // Finalen Tagesverbrauch aus dem (ggf. angepassten) Verbrauch berechnen
-      dailyConsumption = adjustedConsumption / daysTotalOldToNew;
-
-      // Sicherheitscheck für Tagesverbrauch
-      if (dailyConsumption < 0 || isNaN(dailyConsumption)) {
-        logError(`Fehler: Berechneter Tagesverbrauch ist ungültig (${dailyConsumption}). Setze auf 0.`);
-        dailyConsumption = 0;
-      } else {
-        logDebug(`Finaler Tagesverbrauch berechnet: ${dailyConsumption.toFixed(5)}`);
-      }
-
-    } else {
-      logError("Fehlerhafte Werte: Gesamttage zwischen Alt und Neu sind 0 oder negativ.");
-      dailyConsumption = 0; // Keine Berechnung möglich
     }
 
-    // *** 5. Zählerstände interpolieren/extrapolieren *** //
-
-    // 5a. Zählerstand "Dazwischen" berechnen
-    if (betweenDate && daysOldToBetween !== "-" && daysOldToBetween > 0 && dailyConsumption !== "-") {
-      // Berechne erwarteten Zählerstand: Alter Stand + (Tagesverbrauch * Tage bis Dazwischen)
-      const predictedBetweenValue = zstOldVal + dailyConsumption * daysOldToBetween;
-
-      // Überlaufbehandlung für den Zwischenwert
-      if (predictedBetweenValue > maxValue) {
-        // Modulo-Arithmetik für Überlauf (angenommen, Zähler springt von maxValue auf 1)
-        zstBetweenVal = (predictedBetweenValue - 1) % maxValue + 1;
-        logDebug(`Überlauf beim Zwischenwert erkannt! Berechnet: ${predictedBetweenValue.toFixed(3)}, Korrigiert auf: ${zstBetweenVal.toFixed(3)}`);
-      } else if (predictedBetweenValue < 0) {
-        logError("Negativer Zwischen-Zählerstand vorhergesagt.");
-        zstBetweenVal = "-"; // Fehlerwert
-      } else {
-        zstBetweenVal = predictedBetweenValue; // Kein Überlauf
+    // --- Berechnung für "Zukunft" ---
+    let zstFutureVal = "-";
+    let consumptionNewToFuture = "-";
+    let durationNewToFutureVal = "-"; // Neuer Name
+    if (dateFuture) {
+      durationNewToFutureVal = calculateDurationInDays(dateNew, dateFuture); // <-- Geändert
+      if (durationNewToFutureVal !== "-") {
+        zstFutureVal = getZstAtTargetDate(
+          zstOldVal, zstNewVal, dateOld, dateNew, dateFuture,
+          currentMaxValue, isWinterMode, CONFIG
+        );
+        if (zstFutureVal !== "-") {
+          consumptionNewToFuture = calculateConsumption(zstNewVal, zstFutureVal, currentMaxValue);
+        }
       }
-    } else if (betweenDate) {
-      logWarn("Zwischen-Zählerstand konnte nicht berechnet werden (ungültige Tage oder Tagesverbrauch).");
     }
 
-    // *** 5b. Zählerstand "Zukunft" berechnen *** //
-    ///let zstFutureVal = "-";
-    if (futureDate && daysNewToFuture !== "-" && daysNewToFuture > 0 && dailyConsumption !== "-") {
-      // Berechne erwarteten Zählerstand: Neuer Stand + (Tagesverbrauch * Tage bis Zukunft)
-      const predictedFutureValue = zstNewVal + dailyConsumption * daysNewToFuture;
+    // --- Berechnung für die Anzeige "Neu" (abhängig von "Dazwischen") ---
+    let displayDurationNew = "-"; // Neuer Name
+    //let displayDaysNew = "-";
+    let displayVerbrauchNew = "-";
+    let displaySourceDateForNew = dateOld; // Standard: von Alt
+    let displaySourceZstForNew = zstOldVal; // Standard: von Alt
 
-      // Überlaufbehandlung für den Zukunftswert
-      if (predictedFutureValue > maxValue) {
-        zstFutureVal = (predictedFutureValue - 1) % maxValue + 1; // Modulo
-        logDebug(`Überlauf beim Zukunftswert erkannt! Berechnet: ${predictedFutureValue.toFixed(3)}, Korrigiert auf: ${zstFutureVal.toFixed(3)}`);
-      } else if (predictedFutureValue < 0) {
-        logError("Negativer Zukunfts-Zählerstand vorhergesagt.");
-        zstFutureVal = "-"; // Fehlerwert
-      } else {
-        zstFutureVal = predictedFutureValue; // Kein Überlauf
-      }
-    } else if (futureDate) {
-      logWarn("Zukunfts-Zählerstand konnte nicht berechnet werden (ungültige Tage oder Tagesverbrauch).");
+    if (dateBetween && zstBetweenVal !== "-") {
+      // Wenn Dazwischen existiert, bezieht sich "Neu" auf Dazwischen -> Neu
+      displaySourceDateForNew = dateBetween;
+      displaySourceZstForNew = zstBetweenVal;
+    }
+    // Berechne Tage und Verbrauch für den relevanten Abschnitt bis "Neu"
+    displayDurationNew = calculateDurationInDays(displaySourceDateForNew, dateNew); // <-- Geändert
+    if (displayDurationNew !== "-") {
+      displayVerbrauchNew = calculateConsumption(displaySourceZstForNew, zstNewVal, currentMaxValue);
     }
 
-    // *** 6. Verbräuche für die einzelnen Perioden berechnen *** //
-    // Verwende IMMER calculateConsumption für Konsistenz und Überlaufbehandlung
+    // --- 6. Ergebnisse im DOM anzeigen ---
+    // Verwende duration statt days für IDs daysNew, daysBetween, daysFuture
+    daysNew.textContent = displayDurationNew !== "-" ? displayDurationNew.toLocaleString('de-DE', {maximumFractionDigits: 0}) : "-"; // Anzeige ggf. formatieren
+    verbrauchNew.textContent = roundValueForDisplay(displayVerbrauchNew);
+    setClassByValue(verbrauchNew, displayVerbrauchNew);
 
-    // Verbrauch von Alt bis Neu (Gesamtverbrauch der Eingabeperiode)
-    ///const verbrauchToNew = calculateConsumption(zstOldVal, zstNewVal, maxValue);
-    // Verbrauch von "Alt" bis "Neu" ODER "Dazwischen" bis "Neu", abhängig davon, ob ein "Dazwischen"-Datum vorliegt
-    const verbrauchToNew = (betweenDate && zstBetweenVal !== "-")
-      ? calculateConsumption(zstBetweenVal, zstNewVal, maxValue)
-      : calculateConsumption(zstOldVal, zstNewVal, maxValue);
+    daysBetween.textContent = durationOldToBetweenVal !== "-" ? durationOldToBetweenVal.toLocaleString('de-DE', {maximumFractionDigits: 0}) : "-";
+    zstBetween.textContent = roundValueForDisplay(zstBetweenVal);
+    verbrauchBetween.textContent = roundValueForDisplay(consumptionOldToBetween);
+    setClassByValue(zstBetween, zstBetweenVal);
+    setClassByValue(verbrauchBetween, consumptionOldToBetween);
 
-    // Verbrauch von Alt bis Dazwischen
-    const verbrauchToBetween = (betweenDate && zstBetweenVal !== "-") ? calculateConsumption(zstOldVal, zstBetweenVal, maxValue) : "-";
+    daysFuture.textContent = durationNewToFutureVal !== "-" ? durationNewToFutureVal.toLocaleString('de-DE', {maximumFractionDigits: 0}) : "-";
+    zstFuture.textContent = roundValueForDisplay(zstFutureVal);
+    verbrauchFuture.textContent = roundValueForDisplay(consumptionNewToFuture);
+    setClassByValue(zstFuture, zstFutureVal);
+    setClassByValue(verbrauchFuture, consumptionNewToFuture);
 
-    // Verbrauch von Neu bis Zukunft
-    const verbrauchToFuture = (futureDate && zstFutureVal !== "-") ? calculateConsumption(zstNewVal, zstFutureVal, maxValue) : "-";
-
-    // *** 7. Ergebnisse im DOM anzeigen *** //
-
-    // Tage anzeigen
-    daysNew.textContent = betweenDate && zstBetweenVal !== "-" ? daysBetweenToNew : (isNaN(daysTotalOldToNew) ? "-" : daysTotalOldToNew);
-
-    daysBetween.textContent = isNaN(daysOldToBetween) ? "-" : daysOldToBetween;
-    daysFuture.textContent = isNaN(daysNewToFuture) ? "-" : daysNewToFuture;
-
-    // Berechnete Zählerstände anzeigen (gerundet und formatiert)
-    zstBetween.textContent = roundValue(zstBetweenVal);
-    zstFuture.textContent = roundValue(zstFutureVal);
-
-    // Berechnete Verbräuche anzeigen (gerundet und formatiert)
-    verbrauchNew.textContent = roundValue(verbrauchToNew);
-    verbrauchBetween.textContent = roundValue(verbrauchToBetween);
-    verbrauchFuture.textContent = roundValue(verbrauchToFuture);
-
-    // CSS Klassen für negative Werte setzen (optional für Overflow, da der Wert selbst nicht > maxValue ist)
-    setClassByValue(zstBetween, zstBetweenVal === "-" ? NaN : zstBetweenVal, maxValue);
-    setClassByValue(zstFuture, zstFutureVal === "-" ? NaN : zstFutureVal, maxValue);
-    setClassByValue(verbrauchNew, verbrauchToNew === "-" ? NaN : verbrauchToNew, maxValue);
-    setClassByValue(verbrauchBetween, verbrauchToBetween === "-" ? NaN : verbrauchToBetween, maxValue);
-    setClassByValue(verbrauchFuture, verbrauchToFuture === "-" ? NaN : verbrauchToFuture, maxValue);
-
-    // *** 8. Debug-Logs *** //
+    // --- 7. Debug-Logs ---
     logDebug(`--- Berechnungsergebnisse ---`);
-    logDebug(`Eckdaten: Alt (${oldDateStr}): ${zstOldVal}, Neu (${newDateStr}): ${zstNewVal}, MaxWert: ${maxValue}`);
-    logDebug(`Tage: Alt->Neu=${daysTotalOldToNew}, Alt->Zwischen=${daysOldToBetween}, Neu->Zukunft=${daysNewToFuture}`);
-    logDebug(`Tage zwischen Alt->Neu=${daysTotalOldToNew}, Alt->Zwischen=${daysOldToBetween}, Neu->Dazwischen=${daysBetweenToNew}`);
-    logDebug(`Verbrauch Gesamt (Alt->Neu): ${totalConsumptionCorrected.toFixed(3)}`);
-    logDebug(`Wintermodus: ${winterModeCheckbox.checked}, Wintertage: ${winterDays}, Angepasster Verbrauch (für TV): ${adjustedConsumption.toFixed(3)}`);
-    logDebug(`Tagesverbrauch (final): ${dailyConsumption.toFixed(5)}`);
-    logDebug(`Zwischen-Datum (${betweenDateStr || '-'}): ZST=${(typeof zstBetweenVal === 'number' ? zstBetweenVal.toFixed(3) : '-')}, Verbrauch (Alt->Zw)=${(typeof verbrauchToBetween === 'number' ? verbrauchToBetween.toFixed(3) : '-')}`);
-    logDebug(`Zukunfts-Datum (${futureDateStr || '-'}): ZST=${(typeof zstFutureVal === 'number' ? zstFutureVal.toFixed(3) : '-')}, Verbrauch (Neu->Zu)=${(typeof verbrauchToFuture === 'number' ? verbrauchToFuture.toFixed(3) : '-')}`);
+    const debugGesamtVerbrauch = calculateConsumption(zstOldVal, zstNewVal, currentMaxValue);
+    const debugGesamtDauer = calculateDurationInDays(dateOld, dateNew); // <-- Geändert
+    logDebug(`Eckdaten: Alt (${datOldStr}): <span class="math-inline">\{zstOldVal\}, Neu \(</span>{datNewStr}): ${zstNewVal}, MaxWert: ${currentMaxValue}`);
+    // Zeige Dauer mit mehr Nachkommastellen im Debug-Log
+    logDebug(`Dauer: Alt->Neu=<span class="math-inline">\{debugGesamtDauer\}, Alt\-\>Zwischen\=</span>{durationOldToBetweenVal}, Dazw->Neu=<span class="math-inline">\{\(dateBetween && displayDurationNew \!\=\= '\-'\) ? displayDurationNew \: 'N/A'\}, Neu\-\>Zukunft\=</span>{durationNewToFutureVal}`);
+    logDebug(`Verbrauch Gesamt (Alt->Neu): ${typeof debugGesamtVerbrauch === 'number' ? debugGesamtVerbrauch.toFixed(3) : '-'}`);
+    logDebug(`Wintermodus: ${isWinterMode}`);
+    logDebug(`Zwischen-Datum (<span class="math-inline">\{datBetweenStr \|\| '\-'\}\)\: ZST\=</span>{(typeof zstBetweenVal === 'number' ? zstBetweenVal.toFixed(3) : '-')}, Verbrauch (Alt->Zw)=${(typeof consumptionOldToBetween === 'number' ? consumptionOldToBetween.toFixed(3) : '-')}`);
+    logDebug(`Anzeige Periode "Neu": Verbrauch=<span class="math-inline">\{\(typeof displayVerbrauchNew \=\=\= 'number' ? displayVerbrauchNew\.toFixed\(3\) \: '\-'\)\}, Dauer\=</span>{displayDurationNew}`); // <-- Geändert
+    logDebug(`Zukunfts-Datum (<span class="math-inline">\{datFutureStr \|\| '\-'\}\)\: ZST\=</span>{(typeof zstFutureVal === 'number' ? zstFutureVal.toFixed(3) : '-')}, Verbrauch (Neu->Zu)=${(typeof consumptionNewToFuture === 'number' ? consumptionNewToFuture.toFixed(3) : '-')}`);
     logDebug(`---------------------------`);
+
   };
+
 
   // *** Event-Listener für alle relevanten Eingaben und Optionen ********** //
 
-  const inputElements = [
+  const allInputElements = [
     datOldInput, datNewInput, datFutureInput, datBetweenInput,
     zstOldInput, zstNewInput,
-    roundingOption, vorkommastellenOption, winterModeCheckbox
+    roundingOption, vorkommastellenOption, winterModeCheckbox,
   ];
 
-  inputElements.forEach((element) => {
-    // 'input' für Text/Datum, 'change' für Select/Checkbox
-    const eventType = (element.tagName === 'SELECT' || element.type === 'checkbox') ? 'change' : 'input';
-    element.addEventListener(eventType, updateCalculation);
+  allInputElements.forEach((element) => {
+    if (element) { // Nur Listener hinzufügen, wenn Element existiert
+      const eventType =
+        element.tagName === "SELECT" || element.type === "checkbox"
+          ? "change"
+          : "input";
+      element.addEventListener(eventType, updateCalculation);
+    } else {
+        // logWarn(`Ein DOM-Element für EventListener wurde nicht gefunden.`); // Optional: Warnung wenn ein Element fehlt
+    }
   });
 
-  // *** Initiale Berechnung beim Laden der Seite *************************** //
-
-  // Sicherstellen, dass initiale Validierungen (z.B. für Datum) einmal laufen
-  validateInputDate(datOldInput);
-  validateInputDate(datNewInput);
-  validateInputDate(datFutureInput);
-  validateInputDate(datBetweenInput);
-  // Dann die erste Berechnung auslösen
-  updateCalculation();
-
+  // *** Initiale Berechnung und Validierung beim Laden der Seite ************ //
+  if (datOldInput) validateInputDateLive(datOldInput);
+  if (datNewInput) validateInputDateLive(datNewInput);
+  if (datFutureInput) validateInputDateLive(datFutureInput);
+  if (datBetweenInput) validateInputDateLive(datBetweenInput);
+  
+  // Einmalige initiale Formatierung für bereits gefüllte Zählerstandsfelder (z.B. durch Browser AutoFill)
+  if (zstOldInput && zstOldInput.value.trim()) {
+    zstOldInput.value = formatZaehlerstandOnBlur(zstOldInput.value);
+  }
+  if (zstNewInput && zstNewInput.value.trim()) {
+    zstNewInput.value = formatZaehlerstandOnBlur(zstNewInput.value);
+  }
+  
+  updateCalculation(); // Erste Berechnung auslösen
 }); // Ende DOMContentLoaded
