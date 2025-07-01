@@ -17,7 +17,7 @@
     <title>Zählerstand-Rechner</title>
     <meta name="author" content="Thomas Boettcher">
     <meta name="created" content="2025-04-01T07:33:03">
-    <meta name="version" content="3.0">
+    <meta name="version" content="3.5">
 
     <!-- 
       Externe Stylesheets
@@ -40,6 +40,7 @@
       */
       .form-control { text-align: right; }
       input::placeholder { color: #999 !important; }
+      .debugAusgabe { width: 100%; }
 
       /* 
         Tabellen-Layout
@@ -162,18 +163,44 @@
         font-size: .875em;
         color: var(--bs-form-invalid-color);
       }
-      
+
       i.icon { padding-bottom: 6px; }
+
     </style>
 
   </head>
   <body>
+
+    <div class="container mt-5">
+      <!-- breadcrumb -->
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb p-3 bg-body-tertiary rounded-3">
+          <li class="breadcrumb-item">
+            <a class="link-body-emphasis" href="https://demo-seite.com/">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-house-heart-fill" viewBox="0 0 16 16">
+                <path d="M7.293 1.5a1 1 0 0 1 1.414 0L11 3.793V2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v3.293l2.354 2.353a.5.5 0 0 1-.708.707L8 2.207 1.354 8.853a.5.5 0 1 1-.708-.707z" />
+                <path d="m14 9.293-6-6-6 6V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5zm-6-.811c1.664-1.673 5.825 1.254 0 5.018-5.825-3.764-1.664-6.691 0-5.018" />
+              </svg>
+              <span class="visually-hidden">Home</span>
+            </a>
+          </li>
+          <li class="breadcrumb-item">
+            <a class="link-body-emphasis fw-semibold text-decoration-none" href="https://demo-seite.com/rechner/">Rechner</a>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">
+            Zählerstand-Rechner
+          </li>
+        </ol>
+      </nav>
+      <!-- ./breadcrumb -->
+    </div>
+
     <!-- 
       Hauptcontainer mit flexbox-basiertem Layout
       - Zentriert den Inhalt vertikal und horizontal
       - Responsive Anpassung für verschiedene Bildschirmgrößen
     -->
-    <div class="container my-5 hero-container">
+    <div class="container mb-5 hero-container">
       <div class="row">
         <!-- 
           Linke Spalte mit Haupttabelle
@@ -257,7 +284,7 @@
                         class="form-control bg-transparent" value="" aria-label="Datum für Zukunftsprognose" 
                         aria-describedby="datumZukunftInputFeedback datumZukunftInputHelp"
                         placeholder="TT.MM.JJJJ">
-                      <small id="datumZukunftInputHelp" class="visually-hidden">Format: TT.MM.JJJJ</small>
+                      <small id="datumZukunftInputHelp" class="visually-hidden"></small>
                       <small id="datumZukunftInputFeedback" class="invalid-feedback" role="alert"></small>
                     </td>
                     <td id="tageZukunftOutputContainer" class="text-end" role="cell">
@@ -287,17 +314,15 @@
                         class="form-control" value="" aria-invalid="true"
                         aria-describedby="zaehlerstandNeuInputFeedback zaehlerstandNeuInputHelp"
                         aria-label="Aktueller Zählerstand" placeholder="0,000">
-                      <small id="zaehlerstandNeuInputHelp" class="visually-hidden">Format: 123.456,789</small>
-                      <small id="zaehlerstandNeuInputFeedback" class="invalid-feedback" role="alert">
-                        Bitte gib einen gültigen Zählerstand ein.
-                      </small>
+                      <small id="zaehlerstandNeuInputHelp" class="visually-hidden"></small>
+                      <small id="zaehlerstandNeuInputFeedback" class="invalid-feedback" role="alert"></small>
                     </td>
                     <td class="text-end" role="cell"><span id="verbrauchGesamtOutput" role="status" aria-label="Gesamtverbrauch">-</span></td>
                     <td role="cell">
                       <input type="text" id="datumNeuInput" name="datumNeuInput" class="form-control" 
                         aria-invalid="true" aria-describedby="datumNeuInputFeedback datumNeuInputHelp" value="" 
                         aria-label="Aktuelles Ablesedatum" placeholder="TT.MM.JJJJ">
-                      <small id="datumNeuInputHelp" class="visually-hidden">Format: TT.MM.JJJJ</small>
+                      <small id="datumNeuInputHelp" class="visually-hidden"></small>
                       <small id="datumNeuInputFeedback" class="invalid-feedback" role="alert"></small>
                     </td>
                     <td class="text-end" role="cell"><span id="tageGesamtOutput" role="status" aria-label="Gesamttage">-</span></td>
@@ -330,7 +355,7 @@
                         class="form-control bg-transparent" aria-invalid="true" 
                         aria-describedby="datumZwischenInputFeedback datumZwischenInputHelp" value=""
                         aria-label="Zwischendatum" placeholder="TT.MM.JJJJ">
-                      <small id="datumZwischenInputHelp" class="visually-hidden">Format: TT.MM.JJJJ</small>
+                      <small id="datumZwischenInputHelp" class="visually-hidden"></small>
                       <small id="datumZwischenInputFeedback" class="invalid-feedback" role="alert"></small>
                     </td>
                     <td class="text-end" role="cell"><span id="tageZwischenOutput" role="status" aria-label="Tage bis zum Zwischendatum">-</span></td>
@@ -357,7 +382,7 @@
                       <input type="text" id="zaehlerstandAltInput" name="zaehlerstandAltInput" 
                         class="form-control" aria-invalid="true" aria-describedby="zaehlerstandAltInputFeedback zaehlerstandAltInputHelp" 
                         placeholder="0,000" value="0" aria-label="Alter Zählerstand">
-                      <small id="zaehlerstandAltInputHelp" class="visually-hidden">Format: 123.456,789</small>
+                      <small id="zaehlerstandAltInputHelp" class="visually-hidden"></small>
                       <small id="zaehlerstandAltInputFeedback" class="invalid-feedback" role="alert">
                         Bitte gib einen gültigen Zählerstand ein.
                       </small>
@@ -367,7 +392,7 @@
                       <input type="text" id="datumAltInput" name="datumAltInput" class="form-control" 
                         value="" aria-label="Altes Ablesedatum" 
                         aria-describedby="datumAltInputFeedback datumAltInputHelp" placeholder="TT.MM.JJJJ">
-                      <small id="datumAltInputHelp" class="visually-hidden">Format: TT.MM.JJJJ</small>
+                      <small id="datumAltInputHelp" class="visually-hidden"></small>
                       <small id="datumAltInputFeedback" class="invalid-feedback" role="alert"></small>
                     </td>
                     <td class="text-end" role="cell"><!--span id="tageAktuellOutput" role="status" aria-label="Tage seit letzter Ablesung">-</span--></td>
@@ -393,11 +418,12 @@
                       <div class="d-flex justify-content-between align-items-center">
                         <a href="https://github.com/ztatement/ZST-Rechner" target="_blank" rel="noopener noreferrer"
                           class="text-muted text-decoration-none">
+                          &copy; <small>Ztatement</small>&#8195;
                           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
                             fill="currentColor" class="bi bi-github pb-1" viewBox="0 0 16 16">
                             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
                           </svg>
-                          <small>GitHub</small>&#8195;&copy; <small>Ztatement</small>
+                          <small>GitHub</small>
                         </a>
                         <div>
                           <button type="reset" class="btn btn-sm btn-outline-secondary me-2 border border-0"><i class="icon">
@@ -406,7 +432,8 @@
   <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/>
                             </svg></i> Reset
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-info border border-0" data-bs-toggle="modal"
+
+                          <button type="button" id="openModalButton" class="btn btn-sm btn-outline-info border border-0" data-bs-toggle="modal"
                             data-bs-target="#infoModal"><i class="icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                             fill="currentColor" class="bi bi-info-circle info-text" viewBox="0 0 16 16">
@@ -511,26 +538,27 @@
       </div><!-- div row end -->
     </div><!-- container end -->
 
-    <div id="debugAusgabe" class="container">
+    <!-- Debug-Ausgabe im Livebetrieb deaktiviert! 
+    <div id="debugAusgabe" class="container mb-5">
       <!-- 
         Debug-Ausgabe
         - Zeigt detaillierte Informationen für Entwickler
         - Scrollbares Textfeld für Logging
         - Volle Breite unter der Tabelle
-      -->
+      -- !>
       <div class="row mt-3">
-        <div class="col-12 d-flex justify-content-center">
-          <div class="card table-custom">
+        <div class="col-12 justify-content-center">
+          <div class="card">
             <div class="card-header">
               <h5 class="card-title mb-0">Debug</h5>
             </div>
             <div class="card-body">
-              <textarea id="debugOutput" class="form-control" rows="10" readonly></textarea>
+              <textarea id="debugOutput" class="debugAusgabe" rows="10" readonly></textarea>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <!-- 
       Info-Modal
@@ -538,11 +566,12 @@
       - Wird über den Info-Button geöffnet
       - Enthält Erklärungen zu den Funktionen
     -->
-    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-describedby="infoModalDesc">
       <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="infoModalLabel">Informationen zum Zählerstand-Rechner</h5>
+            <h5 class="modal-title" id="infoModalLabel">Informationen zum Zählerstand-Rechner &#8195;<small>v.3.5_min </small>
+</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
           </div>
 
@@ -553,7 +582,7 @@
             - Informationen zu den Berechnungen
           -->
           <div class="modal-body">
-            <p><strong>Zählerstand-Rechner – Ihr Tool zur Verbrauchskontrolle</strong></p>
+            <p id="infoModalDesc"><strong>Zählerstand-Rechner – Ihr Tool zur Verbrauchskontrolle</strong></p>
             <p>Mit diesem <strong>Zählerstand-Rechner</strong> können Sie schnell und einfach Ihren Energie-
               oder Gasverbrauch berechnen und Zwischenstände schätzen. Das Tool hilft Ihnen, den Überblick über
               Ihren Verbrauch zu behalten – perfekt für Abrechnungen, Prognosen oder einfach zur besseren
@@ -657,6 +686,7 @@
           </div>
         </div>
       </div>
+
     </div>
 
     <!-- 
@@ -667,6 +697,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
       integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
       crossorigin="anonymous"></script>
-    <script src="zst-rechner_min.js"></script>
+    <script src="zst-rechner_3.5_min.js"></script>
+
   </body>
 </html>
