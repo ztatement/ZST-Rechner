@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="de-DE">
+  <head>
+    <!-- 
+      Grundlegende Meta-Informationen
+      - UTF-8 Zeichenkodierung für korrekte Darstellung von Umlauten und Sonderzeichen
+      - Responsive Viewport-Einstellung für mobile Geräte
+    -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- 
+      Seitentitel und Meta-Informationen
+      - Titel wird in Browser-Tab und Lesezeichen angezeigt
+      - Meta-Tags für Autor, Erstellungsdatum und Version
+    -->
+    <title>Zählerstand-Rechner</title>
+    <meta name="author" content="Thomas Boettcher">
+    <meta name="created" content="2025-04-01T07:33:03">
+    <meta name="version" content="3.5">
+
+    <!-- 
+      Externe Stylesheets
+      - Bootstrap 5.3.3 für responsives Grid-System und Komponenten
+      - SRI (Subresource Integrity) Hash für Sicherheit
+    -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+    <!-- 
+      Eigene Styles
+      - Definiert das visuelle Erscheinungsbild der Anwendung
+      - Enthält spezifische Anpassungen für Formulare, Tabellen und Ausgabeelemente
+    -->
+    <style>
+      /* 
+        Formular-Styling
+        - Rechtsbündige Ausrichtung für numerische Eingaben
+        - Konsistente Darstellung von Eingabe- und Ausgabefeldern
+      */
+      .form-control { text-align: right; }
+      input::placeholder { color: #999 !important; }
+      .debugAusgabe { width: 100%; }
+
+      /* 
+        Tabellen-Layout
+        - Maximale Breite für bessere Lesbarkeit
+        - Zentrierte Ausrichtung im Container
+      */
+      .table-custom { width: 100%; max-width: 750px; margin: auto; }
+
+      /* 
+        Tooltip-Styling
+        - Hilfe-Symbol mit Cursor-Änderung
+        - Verbesserte Benutzerführung
+      */
+      .tooltip-label { cursor: help; }
+
+      /* 
+        Validierungs-Styling
+        - Rote Umrandung für ungültige Eingaben
+        - Feedback-Nachrichten unter den Feldern
+      */
+      .is-invalid { border-color: red; }
+      .invalid-feedback { 
+        display: none; 
+        width: 100%; 
+        margin-top: 0.25rem; 
+        font-size: 0.875em; 
+        color: #dc3545; 
+      }
+
+      /* 
+        Wert-Styling
+        - Rote Hervorhebung für negative Werte
+        - Orange Hervorhebung für Überlauf-Werte
+        - Fettschrift für bessere Sichtbarkeit
+      */
+      .negative { color: red; font-weight: bold; }
+      .overflow { color: orange; font-weight: bold; }
+
+      /* 
+        Layout-Struktur
+        - Flexbox-basiertes Layout für responsive Darstellung
+        - Zentrierte Ausrichtung der Hauptkomponenten
+        - Anpassbare Spaltenbreiten
+      */
+      .hero-container { 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        min-height: 80vh; 
+      }
+      .left-column { 
+        flex: 2; 
+        padding-right: 20px; 
+        padding-top: .4em;
+      }
+      .right-column { 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: flex-start; 
+        margin-top: 3rem; 
+      }
+      .table > tbody { vertical-align: middle; }
+
+      /* 
+        Output-Element-Styling
+        - Konsistentes Aussehen mit Input-Feldern
+        - Readonly-Styling für Ausgabefelder
+        - Angepasste Darstellung für numerische Werte
+      */
+      output {
+        display: inline-block;
+        width: 100% !important;
+        padding: .375rem .75rem;
+        border: 1px solid #ccc;
+        border-radius: .375rem;
+        background-color: #e9ecef;
+        font-family: inherit;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #495057;
+        box-shadow: none;
+        outline: none;
+        text-align: right;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+      }
+
+      /* 
+        Tabellen-Zellen-Styling
+        - Flexbox-Layout für Zelleninhalte
+        - Gleichmäßige Verteilung von Elementen
+        - Vertikale Zentrierung
+      */
+      .table-success td .d-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .table-success td a,
+      .table-success td span { 
+        margin: 0 8px; 
+      }
+      .info-text { color: #0dcaf0; }
+
+      /* 
+        Feedback-Element-Styling
+        - Konsistente Darstellung von Validierungsmeldungen
+        - Automatische Anzeige bei ungültigen Eingaben
+        - Reservierter Platz für Feedback-Nachrichten
+      */
+      .is-invalid + .invalid-feedback { 
+        display: block; 
+      }
+      small.invalid-feedback {
+        min-height: 1.2rem;
+        display: none;
+        width: 100%;
+        margin-top: .25rem;
+        font-size: .875em;
+        color: var(--bs-form-invalid-color);
+      }
+
+      i.icon { padding-bottom: 6px; }
+
+    </style>
+
+  </head>
+  <body>
+
+    <div class="container mt-5">
+      <!-- breadcrumb -->
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb p-3 bg-body-tertiary rounded-3">
+          <li class="breadcrumb-item">
+            <a class="link-body-emphasis" href="https://demo-seite.com/">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-house-heart-fill" viewBox="0 0 16 16">
+                <path d="M7.293 1.5a1 1 0 0 1 1.414 0L11 3.793V2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v3.293l2.354 2.353a.5.5 0 0 1-.708.707L8 2.207 1.354 8.853a.5.5 0 1 1-.708-.707z" />
+                <path d="m14 9.293-6-6-6 6V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5zm-6-.811c1.664-1.673 5.825 1.254 0 5.018-5.825-3.764-1.664-6.691 0-5.018" />
+              </svg>
+              <span class="visually-hidden">Home</span>
+            </a>
+          </li>
+          <li class="breadcrumb-item">
+            <a class="link-body-emphasis fw-semibold text-decoration-none" href="https://demo-seite.com/rechner/">Rechner</a>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">
+            Zählerstand-Rechner
+          </li>
+        </ol>
+      </nav>
+      <!-- ./breadcrumb -->
+    </div>
+
+    <!-- 
+      Hauptcontainer mit flexbox-basiertem Layout
+      - Zentriert den Inhalt vertikal und horizontal
+      - Responsive Anpassung für verschiedene Bildschirmgrößen
+    -->
+    <div class="container mb-5 hero-container">
+      <div class="row">
+        <!-- 
+          Linke Spalte mit Haupttabelle
+          - Nimmt 9/12 der verfügbaren Breite ein
+          - Enthält die Schätztabelle und Eingabefelder
+        -->
+        <div class="col-md-9 left-column">
+          <!-- 
+            Seitenüberschrift
+            - Semantische HTML5-Struktur mit h1
+            - ARIA-Rolle für bessere Zugänglichkeit
+          -->
+          <h1 class="h2 text-center mb-4" role="heading" aria-level="1">&#147;Schätztabelle&#148;</h1>
+
+          <!-- 
+            Responsive Tabellen-Container
+            - Ermöglicht horizontales Scrollen auf kleinen Bildschirmen
+            - Behält die Tabellenstruktur bei
+          -->
+          <div class="table-responsive">
+            <!-- 
+              Hauptformular für Zählerstand-Berechnungen
+              - Enthält alle Eingabe- und Ausgabefelder
+              - Wird durch JavaScript validiert und berechnet
+              - ARIA-Label für Screenreader
+            -->
+            <form id="zstcalcform" role="form" aria-label="Zählerstand-Rechner">
+              <!-- 
+                Haupttabelle mit 6 Spalten
+                - Kategorie: Beschreibt den Zeitpunkt (Zukunft, Aktuell, etc.)
+                - Hilfe: Optionales Info-Symbol mit Tooltip
+                - Zählerstand: Eingabe oder berechneter Wert
+                - Verbrauch: Berechneter Verbrauch
+                - Ablese-Datum: Datumseingabe
+                - Tage: Berechnete Zeitspanne
+              -->
+              <table class="table table-striped table-bordered table-custom border border-1 mt-1" role="grid"
+                aria-label="Zählerstand-Eingaben">
+
+                <!-- 
+                  Tabellenkopf
+                  - Definiert die Spaltenüberschriften
+                  - Grüner Hintergrund für bessere Sichtbarkeit
+                  - ARIA-Rollen für Zugänglichkeit
+                -->
+                <thead class="table-success text-center">
+                  <tr role="row">
+                    <th class="text-start" role="columnheader" scope="col" aria-label="Kategorie der Messung">Kategorie</th>
+                    <th role="columnheader" scope="col" aria-label="Hilfe"></th>
+                    <th role="columnheader" scope="col" aria-label="Zählerstand in Kubikmetern">Zählerstand</th>
+                    <th role="columnheader" scope="col" aria-label="Verbrauch in Kubikmetern">Verbrauch*</th>
+                    <th role="columnheader" scope="col" aria-label="Datum der Ablesung">Ablese-Datum</th>
+                    <th class="text-end" role="columnheader" scope="col" aria-label="Anzahl der Tage">Tage</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <!-- 
+                    Zeile "Zukunft"
+                    - Zeigt prognostizierten Zählerstand
+                    - Verbrauch basiert auf Tagesverbrauch
+                    - Tage bis zum Zieldatum
+                    - Readonly-Ausgabefelder
+                  -->
+                  <tr role="row">
+                    <td role="cell" aria-label="Zukunft">Zukunft</td>
+                    <td role="cell">
+                      <span class="tooltip-label" data-bs-toggle="tooltip"
+                        title="Option: Datum für die gewünschte Ablesung in der Zukunft eintragen." role="tooltip"
+                        aria-label="Hilfe: Option: Datum für die Ablesung in der Zukunft eintragen">
+                        <strong class="info-text" aria-hidden="true">?</strong>
+                      </span>
+                    </td>
+                    <td id="zaehlerstandZukunftOutput" class="text-end" role="cell">
+                      <output type="text" class="form-control bg-transparent" name="zaehlerstandZukunftOutput" 
+                        aria-live="polite" readonly role="status" aria-label="Prognostizierter Zählerstand">-</output>
+                    </td>
+                    <td class="text-end" role="cell"><span id="verbrauchZukunftOutput" role="status" aria-label="Prognostizierter Verbrauch">-</span></td>
+                    <td class="text-end" role="cell">
+                      <input type="text" id="datumZukunftInput" name="datumZukunftInput" 
+                        class="form-control bg-transparent" value="" aria-label="Datum für Zukunftsprognose" 
+                        aria-describedby="datumZukunftInputFeedback datumZukunftInputHelp"
+                        placeholder="TT.MM.JJJJ">
+                      <small id="datumZukunftInputHelp" class="visually-hidden"></small>
+                      <small id="datumZukunftInputFeedback" class="invalid-feedback" role="alert"></small>
+                    </td>
+                    <td id="tageZukunftOutputContainer" class="text-end" role="cell">
+                      <span id="tageZukunftOutput" role="status" aria-label="Tage bis zum Zukunftsdatum">-</span>
+                    </td>
+                  </tr>
+
+                  <!-- 
+                    Zeile "Aktuell"
+                    - Eingabe des neuesten Zählerstands
+                    - Verbrauch vom alten zum aktuellen Stand
+                    - Tage vom alten zum aktuellen Datum
+                    - Pflichtfeld mit Validierung
+                    - Tooltip für Hilfestellung
+                  -->
+                  <tr role="row">
+                    <td role="cell" aria-label="Aktuell">Aktuell</td>
+                    <td role="cell">
+                      <span class="tooltip-label" data-bs-toggle="tooltip"
+                        title="Neuesten abgelesenen Zählerstand und das aktuelle Datum eintragen" role="tooltip"
+                        aria-label="Hilfe: Neuesten abgelesenen Zählerstand und das aktuelle Datum eintragen">
+                        <strong class="info-text" aria-hidden="true">?</strong>
+                      </span>
+                    </td>
+                    <td role="cell">
+                      <input type="text" id="zaehlerstandNeuInput" name="zaehlerstandNeuInput" 
+                        class="form-control" value="" aria-invalid="true"
+                        aria-describedby="zaehlerstandNeuInputFeedback zaehlerstandNeuInputHelp"
+                        aria-label="Aktueller Zählerstand" placeholder="0,000">
+                      <small id="zaehlerstandNeuInputHelp" class="visually-hidden"></small>
+                      <small id="zaehlerstandNeuInputFeedback" class="invalid-feedback" role="alert"></small>
+                    </td>
+                    <td class="text-end" role="cell"><span id="verbrauchGesamtOutput" role="status" aria-label="Gesamtverbrauch">-</span></td>
+                    <td role="cell">
+                      <input type="text" id="datumNeuInput" name="datumNeuInput" class="form-control" 
+                        aria-invalid="true" aria-describedby="datumNeuInputFeedback datumNeuInputHelp" value="" 
+                        aria-label="Aktuelles Ablesedatum" placeholder="TT.MM.JJJJ">
+                      <small id="datumNeuInputHelp" class="visually-hidden"></small>
+                      <small id="datumNeuInputFeedback" class="invalid-feedback" role="alert"></small>
+                    </td>
+                    <td class="text-end" role="cell"><span id="tageGesamtOutput" role="status" aria-label="Gesamttage">-</span></td>
+                  </tr>
+
+                  <!-- 
+                    Zeile "Dazwischen"
+                    - Zeigt berechneten Zählerstand für Zwischendatum
+                    - Verbrauch basiert auf Tagesverbrauch
+                    - Tage bis zum Zwischendatum
+                    - Optionales Feld
+                    - Gelber Hintergrund für Unterscheidung
+                  -->
+                  <tr role="row">
+                    <td role="cell" aria-label="Dazwischen">Dazwischen</td>
+                    <td role="cell">
+                      <span class="tooltip-label" data-bs-toggle="tooltip"
+                        title="Option: Datum für die Zwischenablesung eintragen." role="tooltip"
+                        aria-label="Hilfe: Option: Datum für die Zwischenablesung eintragen">
+                        <strong class="info-text" aria-hidden="true">?</strong>
+                      </span>
+                    </td>
+                    <td id="zaehlerstandZwischenOutput" class="text-end bg-warning-subtle" role="cell">
+                      <output type="text" class="form-control bg-transparent" name="zaehlerstandZwischenOutput" 
+                        aria-live="polite" readonly role="status" aria-label="Zwischenzählerstand">-</output>
+                    </td>
+                    <td class="text-end" role="cell"><span id="verbrauchZwischenOutput" role="status" aria-label="Zwischenverbrauch">-</span></td>
+                    <td role="cell">
+                      <input type="text" id="datumZwischenInput" name="datumZwischenInput" 
+                        class="form-control bg-transparent" aria-invalid="true" 
+                        aria-describedby="datumZwischenInputFeedback datumZwischenInputHelp" value=""
+                        aria-label="Zwischendatum" placeholder="TT.MM.JJJJ">
+                      <small id="datumZwischenInputHelp" class="visually-hidden"></small>
+                      <small id="datumZwischenInputFeedback" class="invalid-feedback" role="alert"></small>
+                    </td>
+                    <td class="text-end" role="cell"><span id="tageZwischenOutput" role="status" aria-label="Tage bis zum Zwischendatum">-</span></td>
+                  </tr>
+
+                  <!-- 
+                    Zeile "Alt"
+                    - Eingabe des ältesten Zählerstands
+                    - Startpunkt für alle Berechnungen
+                    - Standardwert: 0
+                    - Pflichtfeld mit Validierung
+                    - Tooltip für Hilfestellung
+                  -->
+                  <tr role="row">
+                    <td role="cell" aria-label="Alt">Alt</td>
+                    <td role="cell">
+                      <span class="tooltip-label" data-bs-toggle="tooltip"
+                        title="Ältesten abgelesenen Zählerstand und das Ablesedatum eintragen." role="tooltip"
+                        aria-label="Hilfe: Ältesten abgelesenen Zählerstand und Datum eintragen">
+                        <strong class="info-text" aria-hidden="true">?</strong>
+                      </span>
+                    </td>
+                    <td role="cell">
+                      <input type="text" id="zaehlerstandAltInput" name="zaehlerstandAltInput" 
+                        class="form-control" aria-invalid="true" aria-describedby="zaehlerstandAltInputFeedback zaehlerstandAltInputHelp" 
+                        placeholder="0,000" value="0" aria-label="Alter Zählerstand">
+                      <small id="zaehlerstandAltInputHelp" class="visually-hidden"></small>
+                      <small id="zaehlerstandAltInputFeedback" class="invalid-feedback" role="alert">
+                        Bitte gib einen gültigen Zählerstand ein.
+                      </small>
+                    </td>
+                    <td class="text-end" role="cell"><!--span id="verbrauchNeuOutput" role="status" aria-label="Verbrauch seit letzter Ablesung">-</span--></td>
+                    <td role="cell">
+                      <input type="text" id="datumAltInput" name="datumAltInput" class="form-control" 
+                        value="" aria-label="Altes Ablesedatum" 
+                        aria-describedby="datumAltInputFeedback datumAltInputHelp" placeholder="TT.MM.JJJJ">
+                      <small id="datumAltInputHelp" class="visually-hidden"></small>
+                      <small id="datumAltInputFeedback" class="invalid-feedback" role="alert"></small>
+                    </td>
+                    <td class="text-end" role="cell"><!--span id="tageAktuellOutput" role="status" aria-label="Tage seit letzter Ablesung">-</span--></td>
+                  </tr>
+                </tbody>
+
+                <!-- 
+                  Tabellenfuß
+                  - Enthält zusätzliche Informationen und Steuerelemente
+                  - GitHub-Link für Quellcode
+                  - Reset-Button für Formular
+                  - Info-Button für Modal-Dialog
+                -->
+                <tfoot class="table-success">
+                  <tr>
+                    <td colspan="6" class="text-start text-muted fs-6 py-1">
+                      <!-- 
+                        Fußzeile mit zusätzlichen Informationen
+                        - GitHub-Link für Quellcode-Zugriff
+                        - Reset-Button zum Zurücksetzen des Formulars
+                        - Info-Button für zusätzliche Informationen
+                      -->
+                      <div class="d-flex justify-content-between align-items-center">
+                        <a href="https://github.com/ztatement/ZST-Rechner" target="_blank" rel="noopener noreferrer"
+                          class="text-muted text-decoration-none">
+                          &copy; <small>Ztatement</small>&#8195;
+                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                            fill="currentColor" class="bi bi-github pb-1" viewBox="0 0 16 16">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
+                          </svg>
+                          <small>GitHub</small>
+                        </a>
+                        <div>
+                          <button type="reset" class="btn btn-sm btn-outline-secondary me-2 border border-0"><i class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+  <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>
+  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/>
+                            </svg></i> Reset
+                          </button>
+
+                          <button type="button" id="openModalButton" class="btn btn-sm btn-outline-info border border-0" data-bs-toggle="modal"
+                            data-bs-target="#infoModal"><i class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                            fill="currentColor" class="bi bi-info-circle info-text" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                            <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                            </svg></i> Info
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
+                
+              </table>
+            </form>
+          </div>
+        </div>
+        
+        <!-- 
+          Rechte Spalte mit Konfigurationsoptionen
+          - Enthält Einstellungen für Vorkommastellen und Rundung
+          - Optionen für Wintermodus und Abrechnung
+        -->
+        <div class="col-md-3 right-column mt-5 pt-4">
+          <!-- 
+            Konfigurationsbereich
+            - Einstellungen für Zählerstand-Berechnungen
+            - Responsive Anpassung der Eingabefelder
+          -->
+          <div class="card border bg-light-subtle border-0">
+            <div class="card-header border border-0">
+              <h5 class="card-title mb-0">Einstellungen</h5>
+            </div>
+            <div class="card-body">
+              <!-- 
+                Vorkommastellen-Einstellung
+                - Bestimmt die maximale Anzahl der Vorkommastellen
+                - Beeinflusst die Validierung der Eingaben
+              -->
+              <div class="mb-3">
+                <label for="vorkommastellenOption" class="form-label" id="vorkommastellenLabel">Vorkommastellen</label>
+                <select class="form-select" id="vorkommastellenOption" aria-labelledby="vorkommastellenLabel"
+                  aria-describedby="vorkommastellenHelp">
+                  <option value="6">6 Stellen (999.999)</option>
+                  <option value="5">5 Stellen (99.999)</option>
+                  <option value="4">4 Stellen (9.999)</option>
+                  <option value="3">3 Stellen (999)</option>
+                </select>
+                <small id="vorkommastellenHelp" class="visually-hidden">Bestimmt die maximale Anzahl der Vorkommastellen</small>
+              </div>
+
+              <!-- 
+                Rundungsoptionen
+                - Verschiedene Methoden zur Rundung der Ergebnisse
+                - Beeinflusst die Anzeige der berechneten Werte
+              -->
+              <div class="mb-3">
+                <label for="rundungsOption" class="form-label" id="rundungsLabel">Rundung</label>
+                <select class="form-select" id="rundungsOption" aria-labelledby="rundungsLabel"
+                  aria-describedby="rundungsHelp">
+                  <option value="standard">Kaufmännisch</option>
+                  <option value="floor">Abrunden</option>
+                  <option value="none">Keine</option>
+                </select>
+                <small id="rundungsHelp" class="visually-hidden">Bestimmt die Rundungsmethode für die Ergebnisse</small>
+              </div>
+
+              <!-- 
+                Zusätzliche Optionen
+                - Checkboxen für spezielle Berechnungsmodi
+                - Tooltips für Erklärungen
+              -->
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="wintermodusCheckbox" 
+                  aria-describedby="wintermodusHelp">
+                <label class="form-check-label" for="wintermodusCheckbox" id="wintermodusLabel">
+                  Wintermodus
+                  <span class="tooltip-label" data-bs-toggle="tooltip"
+                    title="Berücksichtigt erhöhten Verbrauch im Winter">
+                    <strong class="info-text">?</strong>
+                  </span>
+                </label>
+                <small id="wintermodusHelp" class="visually-hidden">Berücksichtigt einen erhöhten Verbrauch (2%) in den Wintermonaten (November-Februar).</small>
+              </div>
+
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="abrechnungCheckbox"
+                  aria-describedby="abrechnungHelp">
+                <label class="form-check-label" for="abrechnungCheckbox" id="abrechnungLabel">
+                  Abrechnung
+                  <span class="tooltip-label" data-bs-toggle="tooltip"
+                    title="Berücksichtigt Abrechnungszeiträume">
+                    <strong class="info-text">?</strong>
+                  </span>
+                </label>
+                <small id="abrechnungHelp" class="visually-hidden">Berücksichtigt Abrechnungszeiträume bei der Berechnung für aufeinander folgende Tage.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- div row end -->
+    </div><!-- container end -->
+
+    <div id="debugAusgabe" class="container mb-5">
+      <!-- 
+        Debug-Ausgabe
+        - Zeigt detaillierte Informationen für Entwickler
+        - Scrollbares Textfeld für Logging
+        - Volle Breite unter der Tabelle
+      -->
+      <div class="row mt-3">
+        <div class="col-12 justify-content-center">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">Debug</h5>
+            </div>
+            <div class="card-body">
+              <textarea id="debugOutput" class="debugAusgabe" rows="10" readonly></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 
+      Info-Modal
+      - Zeigt zusätzliche Informationen und Hilfe
+      - Wird über den Info-Button geöffnet
+      - Enthält Erklärungen zu den Funktionen
+    -->
+    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-describedby="infoModalDesc">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="infoModalLabel">Informationen zum Zählerstand-Rechner &#8195;<small>v.3.5 </small></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+          </div>
+
+          <!-- 
+            Modal-Inhalt
+            - Erklärungen zu den Funktionen
+            - Hinweise zur Verwendung
+            - Informationen zu den Berechnungen
+          -->
+          <div class="modal-body">
+            <p id="infoModalDesc"><strong>Zählerstand-Rechner – Ihr Tool zur Verbrauchskontrolle</strong></p>
+            <p>Mit diesem <strong>Zählerstand-Rechner</strong> können Sie schnell und einfach Ihren Energie-
+              oder Gasverbrauch berechnen und Zwischenstände schätzen. Das Tool hilft Ihnen, den Überblick über
+              Ihren Verbrauch zu behalten – perfekt für Abrechnungen, Prognosen oder einfach zur besseren
+              Kontrolle der Kosten.
+            </p>
+            <p><strong>Was der Rechner kann:</strong></p>
+            <ul>
+              <li>
+                <strong>Eingabeprüfung:</strong>
+                <ul>
+                  <li>Automatische Überprüfung von Zählerständen und Datumsformaten (z. B. <code>12.05.2024</code>
+                    oder <code>1.234,567</code>).
+                  </li>
+                  <li>Direkte Fehlermeldungen bei falschen Eingaben (z. B. ungültige Zahlen oder fehlende
+                    Daten).
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <strong>Verbrauch & Zwischenstände berechnen:</strong>
+                <ul>
+                  <li>Berechnet den <strong>Verbrauch</strong> zwischen zwei Zeitpunkten (z. B. zwischen
+                    "Alt" und "Aktuell").
+                  </li>
+                  <li>Schätzt <strong>Zwischenstände</strong> für beliebige Daten – ideal für zukünftige
+                    Ablesungen.
+                  </li>
+                  <li>Berücksichtigt <strong>Zählerüberläufe</strong>, z.B. bei 99.999 oder falls ein
+                    Digital-Zähler zurückgesetzt wurde.
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <strong>Optionale Anpassungen:</strong>
+                <ul>
+                  <li>
+                    <strong>Vorkommastellen:</strong>
+                    <ul>
+                      <li><em>6 Vorkommastellen wie die meisten neuen Zähler.</em> (Standard).</li>
+                      <li><em>5 Vorkommastellen, meistens Gaszähler</em>.</li>
+                      <li><em>4 Vorkommastellen haben alte Gaszähler und auch Wasserzähler</em>.</li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>Rundungsoptionen:</strong>
+                    <ul>
+                      <li><em>Kaufmännisch</em> (Standard).</li>
+                      <li><em>Immer abrunden</em> (vorsichtige Schätzung).</li>
+                      <li><em>Keine Rundung</em> (exakte Werte, max. 3 Nachkommastellen).</li>
+                    </ul>
+                  </li>
+                  <li><strong>Abrechnungsmodus:</strong> Automatische Berücksichtigung von Null-Verbrauch z.B.
+                    bei Zählerwechsel oder Ein- und Auszug. Ist dieser Modus aktiviert werden aufeinander folgende
+                    Datum eingaben mit dem selben Zählerstand berechnet.
+                  </li>
+                  <li><strong>Wintermodus:</strong> Automatische Berücksichtigung eines Mehrverbrauchs von 2 %,
+                    angepasst für die Wintermonate November bis Februar. Die Berechnung erfolgt auf Basis der
+                    tatsächlichen Verbrauchstage in diesem Zeitraum und berücksichtigt damit z.B. Heizkosten präzise.
+                    Die Berechnung wird <em>nicht </em>pauschal auf den gesamten Zeitraum angewendet.
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <strong>Einfache Bedienung & hilfreiche Funktionen:</strong>
+                <ul>
+                  <li><strong>Erklärungen direkt im Tool:</strong> Fragezeichen-Symbole (<strong class="info-text">?</strong>) neben
+                    Eingabefeldern erklären, was einzutragen ist.
+                  </li>
+                  <li><strong>Deutsches Format:</strong> Alle Eingaben – Zählerstände und Datumsangaben –
+                    sind direkt an deutsche Gewohnheiten angepasst.
+                  </li>
+                </ul>
+              </li>
+            </ul>
+            <p><strong>Wichtige Hinweise:</strong></p>
+            <ul>
+              <li><strong>Pflichtfelder:</strong> Ohne die Eingabe des <em>aktuellen Zählerstands</em> und
+                eines <em>Datums</em> bleiben die Ergebnisse leer.
+              </li>
+              <li><strong>Leeres Formular:</strong> Falls wichtige Daten fehlen, wird dies klar angezeigt –
+                nichts geht verloren.
+              </li>
+            </ul>
+            <p><strong>So funktioniert es – Beispiel:</strong></p>
+            <p>Tragen Sie z.B. Ihren letzten Zählerstand ("Alt") sowie den aktuellen Wert ein – der Rechner
+              berechnet Ihren Verbrauch und gibt Ihnen eine Prognose für einen zukünftigen Zählerstand. (z.B.
+              nächste Abrechnung wenn Sie ein Datum in die Zukunft angeben.)
+            </p>
+            <p><strong>Für wen ist das Tool geeignet?</strong></p>
+            <ul>
+              <li>Ideal für Haushalte, die ihren Verbrauch im Blick behalten möchten – sei es für die
+                <strong>Nebenkostenabrechnung</strong> (zu einem bestimmtem Datum), die
+                <strong>Heizungskosten</strong> oder einfach zur besseren Kontrolle des eigenen
+                Energieverbrauchs.
+              </li>
+            </ul>
+            <p>Nutzen Sie das Tool und verschaffen Sie sich volle Transparenz über Ihre Verbrauchsdaten! 😊</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 
+      Externe JavaScript-Bibliotheken
+      - Bootstrap für UI-Komponenten
+      - Eigenes Script für die Berechnungen
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"></script>
+    <script src="zst-rechner_3.5.js"></script>
+
+  </body>
+</html>
